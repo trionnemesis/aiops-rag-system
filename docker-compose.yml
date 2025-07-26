@@ -1,0 +1,102 @@
+## 3. docker-compose.yml
+
+```yaml
+version: '3.8'
+
+services:
+  # FastAPI Application
+  app:
+    build: .
+    container_name: aiops-api
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENSEARCH_HOST=opensearch
+      - PROMETHEUS_HOST=prometheus
+    depends_on:
+      - opensearch
+      - prometheus
+    networks:
+      - aiops-network
+    volumes:
+      - ./src:/app/src
+
+  # OpenSearch
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: aiops-opensearch
+    environment:
+      - discovery.type=single-node
+      - OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m
+      - DISABLE_SECURITY_PLUGIN=true
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    networks:
+      - aiops-network
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+
+  # OpenSearch Dashboards
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    container_name: aiops-opensearch-dashboards
+    ports:
+      - "5601:5601"
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    depends_on:
+      - opensearch
+    networks:
+      - aiops-network
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: aiops-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - aiops-network
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: aiops-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./configs/grafana/dashboards:/etc/grafana/provisioning/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - aiops-network
+
+  # Node Exporter
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: aiops-node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - aiops-network
+
+networks:
+  aiops-network:
+    driver: bridge
+
+volumes:
+  opensearch-data:
+  prometheus-data:
+  grafana-data:
