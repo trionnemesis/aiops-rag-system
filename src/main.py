@@ -107,6 +107,58 @@ async def get_host_metrics(hostname: str):
         logger.error(f"Error fetching metrics: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/v1/cache/info")
+async def get_cache_info():
+    """
+    獲取快取狀態資訊
+    
+    返回 HyDE 和 Embedding 快取的命中率和使用情況
+    """
+    try:
+        cache_info = rag_service.get_cache_info()
+        
+        # 計算命中率
+        hyde_total = cache_info["hyde_cache"]["hits"] + cache_info["hyde_cache"]["misses"]
+        hyde_hit_rate = (cache_info["hyde_cache"]["hits"] / hyde_total * 100) if hyde_total > 0 else 0
+        
+        embedding_total = cache_info["embedding_cache"]["hits"] + cache_info["embedding_cache"]["misses"]
+        embedding_hit_rate = (cache_info["embedding_cache"]["hits"] / embedding_total * 100) if embedding_total > 0 else 0
+        
+        return {
+            "status": "success",
+            "cache_info": {
+                "hyde_cache": {
+                    **cache_info["hyde_cache"],
+                    "hit_rate": f"{hyde_hit_rate:.2f}%"
+                },
+                "embedding_cache": {
+                    **cache_info["embedding_cache"],
+                    "hit_rate": f"{embedding_hit_rate:.2f}%"
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting cache info: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/cache/clear")
+async def clear_cache():
+    """
+    清除所有快取
+    
+    用於測試或需要強制更新時
+    """
+    try:
+        rag_service.clear_cache()
+        logger.info("Cache cleared successfully")
+        return {
+            "status": "success",
+            "message": "All caches have been cleared"
+        }
+    except Exception as e:
+        logger.error(f"Error clearing cache: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
