@@ -197,11 +197,9 @@ docker-compose logs -f api
 
 ### 使用 GitHub Actions
 
-本專案已配置 CI/CD Pipeline，會自動：
 1. 執行測試
 2. 建置 Docker 映像
 3. 推送至 GitHub Container Registry
-4. 部署至生產環境（需設定相關 Secrets）
 
 需要設定的 GitHub Secrets：
 - `GEMINI_API_KEY`: Gemini API 金鑰
