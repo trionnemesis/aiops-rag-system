@@ -72,7 +72,7 @@ async def test_consolidated_document_summarization(mock_services):
     mock_services['gemini'].summarize_document.return_value = "整合摘要結果"
     mock_services['gemini'].generate_final_report.return_value = {
         "insight_analysis": "分析結果",
-        "recommendations": ["建議1", "建議2"]
+        "recommendations": "建議1\n建議2"
     }
     
     # 執行測試
@@ -81,7 +81,7 @@ async def test_consolidated_document_summarization(mock_services):
     # 驗證結果
     assert isinstance(report, InsightReport)
     assert report.insight_analysis == "分析結果"
-    assert report.recommendations == ["建議1", "建議2"]
+    assert report.recommendations == "建議1\n建議2"
     
     # 驗證只調用了一次摘要功能（而不是5次）
     assert mock_services['gemini'].summarize_document.call_count == 1
@@ -113,7 +113,7 @@ async def test_cache_mechanism(mock_services):
     mock_services['opensearch'].search_similar_documents.return_value = []
     mock_services['gemini'].generate_final_report.return_value = {
         "insight_analysis": "分析結果",
-        "recommendations": []
+        "recommendations": ""
     }
     
     # 第一次調用
@@ -162,7 +162,7 @@ async def test_cache_with_different_data(mock_services):
     mock_services['opensearch'].search_similar_documents.return_value = []
     mock_services['gemini'].generate_final_report.return_value = {
         "insight_analysis": "分析結果",
-        "recommendations": []
+        "recommendations": ""
     }
     
     # 調用不同的數據
@@ -191,7 +191,7 @@ async def test_cache_clear(mock_services):
     mock_services['opensearch'].search_similar_documents.return_value = []
     mock_services['gemini'].generate_final_report.return_value = {
         "insight_analysis": "分析結果",
-        "recommendations": []
+        "recommendations": ""
     }
     
     # 第一次調用
@@ -226,7 +226,7 @@ async def test_empty_document_handling(mock_services):
     mock_services['opensearch'].search_similar_documents.return_value = []  # 沒有檢索到文件
     mock_services['gemini'].generate_final_report.return_value = {
         "insight_analysis": "分析結果",
-        "recommendations": []
+        "recommendations": ""
     }
     
     # 執行測試
