@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     api_version: str = "1.0.0"
     
     # Gemini Configuration
-    gemini_api_key: str
+    gemini_api_key: str = ""
     gemini_flash_model: str = "gemini-1.5-flash"
     gemini_pro_model: str = "gemini-1.5-pro"
     
