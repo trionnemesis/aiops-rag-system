@@ -16,15 +16,15 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
     
     - name: Cache pip packages
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.cache/pip
         key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -54,7 +54,7 @@ jobs:
           -v
     
     - name: Upload coverage reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: coverage-reports
@@ -64,7 +64,7 @@ jobs:
           report.html
     
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
@@ -82,10 +82,10 @@ jobs:
     needs: test
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
     
@@ -106,7 +106,7 @@ jobs:
         cat safety-report.json
     
     - name: Upload security scan results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-reports
@@ -125,10 +125,10 @@ jobs:
     needs: test
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.9'
     
@@ -156,7 +156,7 @@ jobs:
         mypy src/ --ignore-missing-imports --no-error-summary || true
     
     - name: Upload code quality reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: code-quality-reports
@@ -172,13 +172,13 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@v3
     
     - name: Log in to the Container registry
-      uses: docker/login-action@v2
+      uses: docker/login-action@v3
       with:
         registry: ${{ env.DOCKER_REGISTRY }}
         username: ${{ github.actor }}
@@ -186,7 +186,7 @@ jobs:
     
     - name: Extract metadata
       id: meta
-      uses: docker/metadata-action@v4
+      uses: docker/metadata-action@v5
       with:
         images: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
@@ -197,7 +197,7 @@ jobs:
           type=raw,value=latest,enable={{is_default_branch}}
     
     - name: Build and push Docker image
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@v5
       with:
         context: .
         push: true
@@ -214,6 +214,6 @@ jobs:
         output: 'trivy-results.sarif'
     
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       with:
         sarif_file: 'trivy-results.sarif'
