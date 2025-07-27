@@ -2,16 +2,10 @@
 
 一個基於 HyDE (假設性文件嵌入) 和摘要精煉技術的智慧維運報告生成系統，透過 RAG 架構自動分析監控數據並生成專業的維運報告。
 
-## 🆕 最新更新 - LangChain LCEL 重構
-
-我們已使用 **LangChain 表達式語言 (LCEL)** 完成系統重構，大幅提升程式碼的可讀性和擴展性：
-
 - 🔗 **LCEL 管道式流程** - 使用聲明式語法定義 RAG 流程
 - 🎯 **統一模型管理** - 標準化的 LangChain 模型介面
 - 🗄️ **向量資料庫抽象** - 輕鬆切換不同的向量資料庫
 - ⚡ **保持向後相容** - 原有 API 介面完全不變
-
-👉 **[查看 LangChain 重構報告](./docs/langchain_refactoring_report.md)**
 
 ## 🏗️ 系統架構概覽
 
@@ -23,9 +17,9 @@
 - 🔍 **向量檢索**: 使用 OpenSearch k-NN 進行相似度搜尋
 - ⚡ **效能優化**: 85% API 成本節省，70%+ 快取命中率
 - 🐳 **容器化**: Docker Compose 一鍵部署
-- 🔗 **LangChain 整合**: 使用 LCEL 實現優雅的 RAG 流程
+- 🔗 **LangChain 整合**: 使用 LCEL 實現 RAG 流程
 
-**技術棧**：FastAPI + LangChain + OpenSearch + Gemini API + Prometheus + Grafana
+**技術棧**：FastAPI + LangChain + OpenSearch + Gemini API + Prometheus + Grafana + LangChain
 
 ## ✨ 主要功能
 
