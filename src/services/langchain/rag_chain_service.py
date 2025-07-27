@@ -2,147 +2,176 @@
 LangChain RAG 鏈服務
 使用 LCEL (LangChain Expression Language) 重構 RAG 流程
 """
-from typing import Dict, Any, List, Optional
 import json
+from typing import Dict, Any, List, Optional
 from datetime import datetime
-from langchain_core.runnables import (
-    RunnablePassthrough, 
-    RunnableParallel,
-    RunnableLambda
-)
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
+from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.documents import Document
+from langchain_google_genai import GoogleGenerativeAI
 from async_lru import alru_cache
 
-from src.services.langchain.model_manager import model_manager
-from src.services.langchain.prompt_manager import prompt_manager
-from src.services.langchain.vector_store_manager import vector_store_manager
+from src.services.exceptions import (
+    HyDEGenerationError, DocumentRetrievalError, 
+    ReportGenerationError, PrometheusError, GeminiAPIError
+)
+from src.services.langchain import (
+    model_manager,
+    prompt_manager,
+    vector_store_manager
+)
 from src.services.prometheus_service import PrometheusService
 from src.models.schemas import InsightReport
-from src.config import settings
 
 
 class RAGChainService:
-    """使用 LCEL 實現的 RAG 服務"""
+    """
+    使用 LangChain Expression Language (LCEL) 實現的 RAG 服務
+    """
     
     def __init__(self):
         self.prometheus = PrometheusService()
-        self._initialize_chains()
+        self._setup_chains()
+    
+    def _setup_chains(self):
+        """初始化所有需要的鏈"""
+        # 1. HyDE Chain
+        self.hyde_chain = self._build_hyde_chain()
         
-    def _initialize_chains(self):
-        """初始化所有 LCEL 鏈"""
-        
-        # 1. HyDE 生成鏈
-        self.hyde_chain = (
-            prompt_manager.get_prompt("hyde_generation")
-            | model_manager.flash_model
-            | StrOutputParser()
+        # 2. Retriever
+        self.retriever = vector_store_manager.as_retriever(
+            search_kwargs={"k": 10}
         )
         
-        # 2. 文檔檢索和格式化鏈
-        self.retriever = vector_store_manager.as_retriever()
+        # 3. Report Generation Chain
+        self.report_chain = self._build_report_chain()
         
-        # 3. 文檔摘要鏈（批次處理）
-        self.summary_chain = (
-            prompt_manager.get_prompt("summary_refinement")
-            | model_manager.flash_model
-            | StrOutputParser()
-        )
-        
-        # 4. 最終報告生成鏈
-        self.report_chain = (
-            prompt_manager.get_prompt("final_report")
-            | model_manager.pro_model
-            | StrOutputParser()
-            | RunnableLambda(self._parse_report_output)
-        )
-        
-        # 5. 完整的 RAG 鏈
+        # 4. Full RAG Chain
         self.full_rag_chain = self._build_full_rag_chain()
     
-    def _build_full_rag_chain(self):
-        """構建完整的 RAG 鏈"""
-        
-        def format_docs(docs: List[Document]) -> str:
-            """格式化文檔列表為字符串"""
-            if not docs:
-                return "無相關文件"
-            return "\n\n--- 文件分隔 ---\n\n".join([
-                f"文件 {i+1}:\n{doc.page_content}" 
-                for i, doc in enumerate(docs)
-            ])
-        
-        def prepare_monitoring_data(input_dict: dict) -> str:
-            """準備監控數據的 JSON 字符串"""
-            return json.dumps(
-                input_dict.get("monitoring_data", {}), 
-                ensure_ascii=False, 
-                indent=2
+    def _build_hyde_chain(self):
+        """建立 HyDE (Hypothetical Document Embeddings) 鏈"""
+        try:
+            hyde_prompt = prompt_manager.get_prompt("hyde_generation")
+            
+            hyde_chain = (
+                hyde_prompt
+                | model_manager.pro_model
+                | StrOutputParser()
             )
-        
-        # 使用 LCEL 構建完整的 RAG 鏈
-        chain = (
-            # 準備輸入
-            RunnableParallel(
-                monitoring_data=RunnablePassthrough(),
-                monitoring_data_str=RunnableLambda(prepare_monitoring_data)
-            ) |
-            # HyDE 生成
-            RunnableParallel(
-                monitoring_data=lambda x: x["monitoring_data"],
-                monitoring_data_str=lambda x: x["monitoring_data_str"],
-                hyde_query=lambda x: self.hyde_chain.invoke({
-                    "monitoring_data": x["monitoring_data_str"]
-                })
-            ) |
-            # 檢索相關文檔
-            RunnableParallel(
-                monitoring_data=lambda x: x["monitoring_data"],
-                monitoring_data_str=lambda x: x["monitoring_data_str"],
-                documents=lambda x: self.retriever.invoke(x["hyde_query"])
-            ) |
-            # 格式化文檔並生成摘要
-            RunnableParallel(
-                monitoring_data=lambda x: x["monitoring_data"],
-                monitoring_data_str=lambda x: x["monitoring_data_str"],
-                context=lambda x: self._generate_summary_context(
-                    x["documents"], 
-                    x["monitoring_data_str"]
-                )
-            ) |
-            # 生成最終報告
-            (lambda x: self.report_chain.invoke({
-                "monitoring_data": x["monitoring_data_str"],
-                "context": x["context"]
-            }))
-        )
-        
-        return chain
+            
+            return hyde_chain
+        except Exception as e:
+            raise HyDEGenerationError(f"Failed to build HyDE chain: {str(e)}")
     
-    def _generate_summary_context(self, documents: List[Document], 
+    def _build_report_chain(self):
+        """建立報告生成鏈"""
+        try:
+            report_prompt = prompt_manager.get_prompt("report_generation")
+            
+            report_chain = (
+                report_prompt
+                | model_manager.flash_model
+                | StrOutputParser()
+                | self._parse_report_sections
+            )
+            
+            return report_chain
+        except Exception as e:
+            raise ReportGenerationError(f"Failed to build report chain: {str(e)}")
+    
+    def _build_full_rag_chain(self):
+        """建立完整的 RAG 鏈"""
+        try:
+            # 定義不使用 HyDE 的備用檢索邏輯
+            def fallback_retrieval(x):
+                """當 HyDE 失敗時的備用檢索"""
+                try:
+                    return self.retriever.invoke(x["monitoring_data_str"])
+                except Exception as e:
+                    raise DocumentRetrievalError(f"Fallback retrieval failed: {str(e)}")
+            
+            # 定義帶有 HyDE 的主要檢索邏輯
+            def hyde_retrieval(x):
+                """使用 HyDE 進行檢索"""
+                try:
+                    hyde_query = self.hyde_chain.invoke({
+                        "monitoring_data": x["monitoring_data_str"]
+                    })
+                    return self.retriever.invoke(hyde_query)
+                except Exception as e:
+                    # 記錄錯誤但不中斷，讓 fallback 處理
+                    import logging
+                    logging.warning(f"HyDE retrieval failed: {str(e)}")
+                    raise e
+            
+            # 建立具有 fallback 的完整鏈
+            full_chain = (
+                RunnableParallel(
+                    monitoring_data=lambda x: x["monitoring_data"],
+                    monitoring_data_str=lambda x: json.dumps(
+                        x["monitoring_data"], 
+                        ensure_ascii=False, 
+                        indent=2
+                    )
+                ) |
+                RunnableParallel(
+                    monitoring_data=lambda x: x["monitoring_data"],
+                    monitoring_data_str=lambda x: x["monitoring_data_str"],
+                    documents=lambda x: self._safe_retrieval(x)
+                ) |
+                RunnableParallel(
+                    monitoring_data_str=lambda x: x["monitoring_data_str"],
+                    context=lambda x: self._generate_summary_context(
+                        x["documents"], 
+                        x["monitoring_data_str"]
+                    )
+                ) |
+                self.report_chain
+            )
+            
+            return full_chain
+        except Exception as e:
+            raise ReportGenerationError(f"Failed to build full RAG chain: {str(e)}")
+    
+    def _safe_retrieval(self, x: Dict[str, Any]) -> List[Any]:
+        """安全的文檔檢索，包含 HyDE 和 fallback"""
+        try:
+            # 嘗試使用 HyDE
+            hyde_query = self.hyde_chain.invoke({
+                "monitoring_data": x["monitoring_data_str"]
+            })
+            documents = self.retriever.invoke(hyde_query)
+            if documents:
+                return documents
+        except Exception as e:
+            import logging
+            logging.warning(f"HyDE retrieval failed, using fallback: {str(e)}")
+        
+        # 使用 fallback（直接用監控數據檢索）
+        try:
+            return self.retriever.invoke(x["monitoring_data_str"])
+        except Exception as e:
+            raise DocumentRetrievalError(f"All retrieval methods failed: {str(e)}")
+    
+    def _generate_summary_context(self, documents: List[Any], 
                                  monitoring_data_str: str) -> str:
-        """生成摘要上下文"""
+        """從檢索到的文檔生成摘要上下文"""
         if not documents:
-            return "無相關歷史經驗"
+            return f"未找到相關文檔。監控數據：\n{monitoring_data_str}"
         
-        # 合併所有文檔內容
-        all_docs_content = "\n\n--- 文件分隔 ---\n\n".join([
-            f"文件 {i+1}:\n{doc.page_content}" 
-            for i, doc in enumerate(documents)
-        ])
+        # 將文檔內容合併
+        context_parts = []
+        for i, doc in enumerate(documents[:5]):  # 限制最多5個文檔
+            context_parts.append(f"文檔 {i+1}:\n{doc.page_content}")
         
-        # 使用摘要鏈處理
-        summary = self.summary_chain.invoke({
-            "monitoring_data": monitoring_data_str,
-            "context": all_docs_content
-        })
-        
-        return summary
+        return "\n\n".join(context_parts)
     
-    def _parse_report_output(self, report_text: str) -> Dict[str, str]:
-        """解析報告輸出"""
-        # 解析「洞見分析」和「具體建議」部分
-        parts = report_text.split("具體建議")
+    def _parse_report_sections(self, report_text: str) -> Dict[str, str]:
+        """解析報告文本，提取不同部分"""
+        # 使用分隔符分割報告
+        parts = report_text.split("建議與行動方案")
         
         insight = ""
         recommendations = ""
@@ -160,15 +189,21 @@ class RAGChainService:
     @alru_cache(maxsize=100, ttl=3600)
     async def _get_cached_embedding(self, text: str) -> List[float]:
         """帶快取的嵌入向量生成"""
-        embeddings = await model_manager.embedding_model.aembed_documents([text])
-        return embeddings[0]
+        try:
+            embeddings = await model_manager.embedding_model.aembed_documents([text])
+            return embeddings[0]
+        except Exception as e:
+            raise GeminiAPIError(f"Failed to generate embeddings: {str(e)}")
     
     @alru_cache(maxsize=50, ttl=1800)
     async def _get_cached_hyde(self, monitoring_data_str: str) -> str:
         """帶快取的 HyDE 生成"""
-        return await self.hyde_chain.ainvoke({
-            "monitoring_data": monitoring_data_str
-        })
+        try:
+            return await self.hyde_chain.ainvoke({
+                "monitoring_data": monitoring_data_str
+            })
+        except Exception as e:
+            raise HyDEGenerationError(f"Failed to generate HyDE query: {str(e)}")
     
     async def generate_report(self, monitoring_data: Dict[str, Any]) -> InsightReport:
         """生成維運報告（主要介面）
@@ -179,19 +214,24 @@ class RAGChainService:
         Returns:
             InsightReport 物件
         """
-        # 執行完整的 RAG 鏈
-        result = await self.full_rag_chain.ainvoke({
-            "monitoring_data": monitoring_data
-        })
-        
-        # 創建報告物件
-        report = InsightReport(
-            insight_analysis=result["insight_analysis"],
-            recommendations=result["recommendations"],
-            generated_at=datetime.now()
-        )
-        
-        return report
+        try:
+            # 執行完整的 RAG 鏈
+            result = await self.full_rag_chain.ainvoke({
+                "monitoring_data": monitoring_data
+            })
+            
+            # 創建報告物件
+            report = InsightReport(
+                insight_analysis=result["insight_analysis"],
+                recommendations=result["recommendations"],
+                generated_at=datetime.now()
+            )
+            
+            return report
+        except Exception as e:
+            if isinstance(e, (HyDEGenerationError, DocumentRetrievalError, GeminiAPIError)):
+                raise
+            raise ReportGenerationError(f"Failed to generate report: {str(e)}")
     
     async def generate_report_with_steps(self, monitoring_data: Dict[str, Any]) -> Dict[str, Any]:
         """生成報告並返回中間步驟（用於調試）
@@ -204,20 +244,32 @@ class RAGChainService:
         """
         monitoring_data_str = json.dumps(monitoring_data, ensure_ascii=False, indent=2)
         
-        # Step 1: HyDE 生成
-        hyde_query = await self._get_cached_hyde(monitoring_data_str)
+        try:
+            # Step 1: HyDE 生成
+            hyde_query = await self._get_cached_hyde(monitoring_data_str)
+        except Exception as e:
+            hyde_query = "HyDE generation failed, using fallback"
         
-        # Step 2: 文檔檢索
-        documents = await vector_store_manager.similarity_search(hyde_query)
+        try:
+            # Step 2: 文檔檢索
+            if hyde_query != "HyDE generation failed, using fallback":
+                documents = await vector_store_manager.similarity_search(hyde_query)
+            else:
+                documents = await vector_store_manager.similarity_search(monitoring_data_str)
+        except Exception as e:
+            raise DocumentRetrievalError(f"Failed to retrieve documents: {str(e)}")
         
         # Step 3: 生成摘要
         context = self._generate_summary_context(documents, monitoring_data_str)
         
-        # Step 4: 生成最終報告
-        report_result = await self.report_chain.ainvoke({
-            "monitoring_data": monitoring_data_str,
-            "context": context
-        })
+        try:
+            # Step 4: 生成最終報告
+            report_result = await self.report_chain.ainvoke({
+                "monitoring_data": monitoring_data_str,
+                "context": context
+            })
+        except Exception as e:
+            raise ReportGenerationError(f"Failed to generate final report: {str(e)}")
         
         # 創建報告物件
         report = InsightReport(
@@ -253,7 +305,7 @@ class RAGChainService:
                 if key not in monitoring_data:
                     monitoring_data[key] = value
         except Exception as e:
-            print(f"Failed to enrich with Prometheus data: {e}")
+            raise PrometheusError(f"Failed to enrich with Prometheus data: {str(e)}")
         
         return monitoring_data
     

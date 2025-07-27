@@ -6,6 +6,9 @@ from async_lru import alru_cache
 # 使用新的 LangChain 實作
 from src.services.langchain.rag_chain_service import RAGChainService
 from src.models.schemas import InsightReport
+from src.services.exceptions import (
+    RAGServiceError, CacheError
+)
 
 
 class RAGService:
@@ -34,26 +37,61 @@ class RAGService:
         """執行完整的 RAG 流程生成維運報告
         
         使用 LangChain LCEL 實現的 RAG 流程
+        
+        Raises:
+            HyDEGenerationError: HyDE 生成失敗
+            DocumentRetrievalError: 文檔檢索失敗
+            ReportGenerationError: 報告生成失敗
+            GeminiAPIError: Gemini API 呼叫失敗
         """
         return await self.rag_chain_service.generate_report(monitoring_data)
     
     async def generate_report_with_steps(self, monitoring_data: Dict[str, Any]) -> Dict[str, Any]:
-        """生成報告並返回中間步驟（用於調試）"""
+        """生成報告並返回中間步驟（用於調試）
+        
+        Raises:
+            HyDEGenerationError: HyDE 生成失敗
+            DocumentRetrievalError: 文檔檢索失敗
+            ReportGenerationError: 報告生成失敗
+        """
         return await self.rag_chain_service.generate_report_with_steps(monitoring_data)
     
     async def enrich_with_prometheus(self, hostname: str, 
                                    monitoring_data: Dict[str, Any]) -> Dict[str, Any]:
-        """從 Prometheus 獲取實時數據豐富監控資料"""
+        """從 Prometheus 獲取實時數據豐富監控資料
+        
+        Raises:
+            PrometheusError: Prometheus 數據獲取失敗
+        """
         return await self.rag_chain_service.enrich_with_prometheus(hostname, monitoring_data)
     
     def clear_cache(self):
-        """清除所有快取（用於測試或維護）"""
-        self.rag_chain_service.clear_cache()
+        """清除所有快取（用於測試或維護）
+        
+        Raises:
+            CacheError: 快取清除失敗
+        """
+        try:
+            self.rag_chain_service.clear_cache()
+        except Exception as e:
+            raise CacheError(f"Failed to clear cache: {str(e)}")
     
     def get_cache_info(self) -> Dict[str, Any]:
-        """獲取快取狀態資訊"""
-        return self.rag_chain_service.get_cache_info()
+        """獲取快取狀態資訊
+        
+        Raises:
+            CacheError: 快取資訊獲取失敗
+        """
+        try:
+            return self.rag_chain_service.get_cache_info()
+        except Exception as e:
+            raise CacheError(f"Failed to get cache info: {str(e)}")
     
     def create_custom_chain(self, **kwargs):
         """創建自定義 RAG 鏈"""
         return self.rag_chain_service.create_custom_chain(**kwargs)
+    
+    @property
+    def prometheus(self):
+        """獲取 Prometheus 服務實例"""
+        return self.rag_chain_service.prometheus
