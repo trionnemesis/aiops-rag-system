@@ -19,7 +19,7 @@
 - 🐳 **容器化**: Docker Compose 一鍵部署
 - 🔗 **LangChain 整合**: 使用 LCEL 實現 RAG 流程
 
-**技術棧**：FastAPI + LangChain + OpenSearch + Gemini API + Prometheus + Grafana + LangChain
+**技術棧**：FastAPI + LangChain + OpenSearch + Gemini API + Prometheus + Grafana 
 
 ## ✨ 主要功能
 
