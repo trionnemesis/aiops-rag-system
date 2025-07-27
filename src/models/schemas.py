@@ -16,6 +16,12 @@ class MonitoringData(BaseModel):
     ram_usage: str = Field(..., alias="RAM使用率")
     disk_io_wait: str = Field(..., alias="磁碟I/O等待")
     network_outbound: str = Field(..., alias="網路流出量")
+    system_load_1min: Optional[str] = Field(None, alias="系統一分鐘負載")
+    tcp_connections: Optional[str] = Field(None, alias="TCP當前連線數")
+    disk_read_iops: Optional[str] = Field(None, alias="磁碟讀取IOPS")
+    disk_write_iops: Optional[str] = Field(None, alias="磁碟寫入IOPS")
+    disk_read_throughput: Optional[str] = Field(None, alias="磁碟讀取速率")
+    disk_write_throughput: Optional[str] = Field(None, alias="磁碟寫入速率")
     port_traffic: Optional[PortTraffic] = Field(None, alias="作業系統Port流量")
     service_metrics: Optional[ServiceMetrics] = Field(None, alias="服務指標")
     
