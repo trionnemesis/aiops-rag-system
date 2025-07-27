@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 from src.services.langchain.vector_store_manager import VectorStoreManager, vector_store_manager
 
 class TestVectorStoreManager:
@@ -27,17 +27,19 @@ class TestVectorStoreManager:
             mock_vectorstore.assert_called_once()
             
     def test_get_retriever_with_hyde(self, manager):
-        # 修正：直接 patch HyDERetriever
-        with patch('langchain.retrievers.HyDERetriever') as mock_hyde_retriever, \
-             patch.object(manager, 'as_retriever', return_value=Mock()) as mock_as_retriever, \
+        # 修正：使用 MagicMock 來模擬模組導入
+        with patch.object(manager, 'as_retriever', return_value=Mock()) as mock_as_retriever, \
              patch('src.services.langchain.vector_store_manager.model_manager'):
             
-            hyde_instance = Mock()
-            mock_hyde_retriever.return_value = hyde_instance
+            # 動態 patch import
+            mock_hyde_retriever_class = MagicMock()
+            mock_hyde_instance = Mock()
+            mock_hyde_retriever_class.return_value = mock_hyde_instance
             
-            retriever = manager.get_retriever_with_hyde(Mock())
-            assert retriever is hyde_instance
-            mock_hyde_retriever.assert_called_once()
+            with patch.dict('sys.modules', {'langchain.retrievers': MagicMock(HyDERetriever=mock_hyde_retriever_class)}):
+                retriever = manager.get_retriever_with_hyde(Mock())
+                assert retriever is mock_hyde_instance
+                mock_hyde_retriever_class.assert_called_once()
     
     def test_vector_store_manager_singleton(self):
         assert isinstance(vector_store_manager, VectorStoreManager)
