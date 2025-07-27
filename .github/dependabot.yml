@@ -1,0 +1,53 @@
+version: 2
+updates:
+  # Enable version updates for Python dependencies
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "@your-github-username"  # Replace with actual username
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "chore"
+      prefix-development: "chore"
+      include: "scope"
+    ignore:
+      # Add any dependencies you want to ignore here
+      # For example, if you need to pin a specific version:
+      # - dependency-name: "numpy"
+      #   versions: [">1.26.4"]
+    groups:
+      # Group all non-security updates together
+      python-dependencies:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "numpy"  # Example: exclude numpy from grouping if needed
+        update-types:
+          - "minor"
+          - "patch"
+      # Security updates should be handled separately
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
