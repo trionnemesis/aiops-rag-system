@@ -1,5 +1,5 @@
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from src.main import app  # 假設您的 FastAPI app 物件在 src/main.py
 from src.services.rag_service import RAGService  # 假設您的服務類別路徑
 from src.models.schemas import InsightReport  # 假設您的 Pydantic 模型路徑
@@ -10,7 +10,8 @@ from datetime import datetime
 @pytest.mark.asyncio
 async def test_root():
     """測試根目錄 (/) 端點是否正常回應"""
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/")
     assert response.status_code == 200
     assert "message" in response.json()
@@ -18,7 +19,8 @@ async def test_root():
 @pytest.mark.asyncio
 async def test_health():
     """測試健康檢查 (/health) 端點是否回報健康"""
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
@@ -64,7 +66,8 @@ async def test_generate_report_with_mock(monkeypatch):
     
     # 5. 使用 AsyncClient 發送 API 請求。
     #    在處理這個請求時，FastAPI 內部呼叫到的將是我們的模擬函式。
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.post(
             "/api/v1/generate_report",
             json={"monitoring_data": monitoring_data}
