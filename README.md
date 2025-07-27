@@ -74,11 +74,6 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
 - 全域錯誤處理器，統一回應格式
 - 請求驗證與詳細錯誤訊息
 
-### 3. 完整的 CI/CD
-- 自動化測試（覆蓋率 85%+）
-- 安全掃描（pip-audit、truffleHog）
-- 程式碼品質檢查（black、pylint、mypy）
-- 容器漏洞掃描（Trivy）
 
 ## 📚 API 端點
 
