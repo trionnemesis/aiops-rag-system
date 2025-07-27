@@ -2,6 +2,17 @@
 
 一個基於 HyDE (假設性文件嵌入) 和摘要精煉技術的智慧維運報告生成系統，透過 RAG 架構自動分析監控數據並生成專業的維運報告。
 
+## 🆕 最新更新 - LangChain LCEL 重構
+
+我們已使用 **LangChain 表達式語言 (LCEL)** 完成系統重構，大幅提升程式碼的可讀性和擴展性：
+
+- 🔗 **LCEL 管道式流程** - 使用聲明式語法定義 RAG 流程
+- 🎯 **統一模型管理** - 標準化的 LangChain 模型介面
+- 🗄️ **向量資料庫抽象** - 輕鬆切換不同的向量資料庫
+- ⚡ **保持向後相容** - 原有 API 介面完全不變
+
+👉 **[查看 LangChain 重構報告](./docs/langchain_refactoring_report.md)**
+
 ## 🏗️ 系統架構概覽
 
 本系統採用多層架構設計，包含數據採集、AI 處理、向量檢索和報告生成等核心組件。
@@ -12,8 +23,9 @@
 - 🔍 **向量檢索**: 使用 OpenSearch k-NN 進行相似度搜尋
 - ⚡ **效能優化**: 85% API 成本節省，70%+ 快取命中率
 - 🐳 **容器化**: Docker Compose 一鍵部署
+- 🔗 **LangChain 整合**: 使用 LCEL 實現優雅的 RAG 流程
 
-**技術棧**：FastAPI + OpenSearch + Gemini API + Prometheus + Grafana
+**技術棧**：FastAPI + LangChain + OpenSearch + Gemini API + Prometheus + Grafana
 
 ## ✨ 主要功能
 
@@ -22,6 +34,7 @@
 - **🔍 向量檢索**：使用 OpenSearch k-NN 進行相似度搜尋
 - **🚀 自動化部署**：GitHub Actions CI/CD Pipeline
 - **📈 效能監控**：Grafana 儀表板和快取狀態監控
+- **🔗 LangChain LCEL**：聲明式的 RAG 流程定義
 
 ## 🚀 快速開始
 
@@ -65,7 +78,21 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
   }'
 ```
 
-### 3. 訪問監控介面
+### 3. 使用 LangChain 組件
+
+```python
+from src.services.langchain import RAGChainService, model_manager
+
+# 使用新的 LangChain RAG 服務
+rag_service = RAGChainService()
+report = await rag_service.generate_report(monitoring_data)
+
+# 直接使用模型管理器
+model = model_manager.pro_model
+response = await model.ainvoke("你的提示詞")
+```
+
+### 4. 訪問監控介面
 
 | 服務 | 網址 | 帳密 |
 |------|------|------|
@@ -79,6 +106,7 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
 ### 📋 文檔導航
 
 - **📖 [完整文檔目錄](./docs/README.md)** - 所有技術文檔的入口
+- **🆕 [LangChain 重構報告](./docs/langchain_refactoring_report.md)** - LCEL 重構詳細說明
 - **🏗️ [系統架構設計](./docs/architecture/system-design.md)** - 詳細的架構說明和組件介紹  
 - **💻 [開發環境設置](./docs/development/local-setup.md)** - 本地開發環境配置
 - **🚀 [Docker 部署指南](./docs/deployment/docker-guide.md)** - 生產環境部署
@@ -94,6 +122,7 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
 | 組件 | 功能 | 端口 |
 |------|------|------|
 | **FastAPI** | RESTful API 服務 | 8000 |
+| **LangChain** | RAG 流程管理 | - |
 | **OpenSearch** | 向量資料庫 | 9200 |
 | **Prometheus** | 監控數據收集 | 9090 |
 | **Grafana** | 監控儀表板 | 3000 |
@@ -136,6 +165,13 @@ pytest tests/ -v
 
 # 測試覆蓋率
 pytest tests/ --cov=src --cov-report=html
+```
+
+### 使用 LangChain 範例
+
+```python
+# 查看完整範例
+python examples/langchain_rag_example.py
 ```
 
 ## 🛠️ 故障排除

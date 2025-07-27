@@ -2,6 +2,12 @@
 
 本目錄包含 AIOps 智慧維運報告 RAG 系統的完整技術文檔。
 
+## 🆕 最新文檔
+
+### 🔗 [LangChain 重構](./langchain/)
+- [重構報告](./langchain_refactoring_report.md) - LangChain LCEL 重構詳細說明
+- [遷移指南](./langchain_migration_guide.md) - 從原實作遷移到 LangChain 版本
+
 ## 📁 文檔結構
 
 ### 🏗️ [系統架構](./architecture/)
@@ -24,6 +30,7 @@
 1. 閱讀 [系統設計](./architecture/system-design.md) 了解整體架構
 2. 按照 [本地環境設置](./development/local-setup.md) 配置開發環境
 3. 參考 [API 端點參考](./api/endpoints.md) 開始 API 調用
+4. 🆕 了解 [LangChain 重構](./langchain_refactoring_report.md) 掌握最新架構
 
 ### 部署上線
 1. 閱讀 [Docker 部署指南](./deployment/docker-guide.md)
@@ -34,6 +41,11 @@
 1. 了解 [優化指南](./development/optimization-guide.md) 中的優化原理
 2. 查看 [優化總結](./development/OPTIMIZATION_SUMMARY.md) 了解實作細節
 3. 監控系統性能指標
+
+### LangChain 升級
+1. 閱讀 [LangChain 重構報告](./langchain_refactoring_report.md) 了解新架構
+2. 參考 [遷移指南](./langchain_migration_guide.md) 進行升級
+3. 查看 `examples/langchain_rag_example.py` 學習使用方式
 
 ## 📋 文檔維護
 
@@ -56,6 +68,6 @@
 
 ---
 
-📝 **文檔最後更新**: 2025-01-26  
+📝 **文檔最後更新**: 2025-01-28  
 🔄 **更新頻率**: 跟隨代碼版本更新  
 👥 **維護者**: 開發團隊
