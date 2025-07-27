@@ -69,4 +69,44 @@ class PrometheusService:
             total_mbps = sum(float(r['value'][1]) for r in net_data['result'])
             metrics["網路流出量"] = f"{total_mbps:.0f} Mbps"
         
+        # 增加 1 分鐘系統負載查詢
+        load_query = f'node_load1{{instance=~"{hostname}.*"}}'
+        load_data = await self.query(load_query)
+        if load_data["result"]:
+            metrics["系統一分鐘負載"] = f"{float(load_data['result'][0]['value'][1]):.2f}"
+        
+        # 增加 TCP 連線數查詢
+        tcp_conn_query = f'node_netstat_Tcp_CurrEstab{{instance=~"{hostname}.*"}}'
+        tcp_conn_data = await self.query(tcp_conn_query)
+        if tcp_conn_data["result"]:
+            metrics["TCP當前連線數"] = f"{int(float(tcp_conn_data['result'][0]['value'][1]))}"
+        
+        # 增加磁碟讀取速率 (IOPS)
+        disk_read_query = f'rate(node_disk_reads_completed_total{{instance=~"{hostname}.*"}}[5m])'
+        disk_read_data = await self.query(disk_read_query)
+        if disk_read_data["result"]:
+            total_read_iops = sum(float(r['value'][1]) for r in disk_read_data['result'])
+            metrics["磁碟讀取IOPS"] = f"{total_read_iops:.0f}"
+        
+        # 增加磁碟寫入速率 (IOPS)
+        disk_write_query = f'rate(node_disk_writes_completed_total{{instance=~"{hostname}.*"}}[5m])'
+        disk_write_data = await self.query(disk_write_query)
+        if disk_write_data["result"]:
+            total_write_iops = sum(float(r['value'][1]) for r in disk_write_data['result'])
+            metrics["磁碟寫入IOPS"] = f"{total_write_iops:.0f}"
+        
+        # 增加磁碟讀取吞吐量 (MB/s)
+        disk_read_bytes_query = f'rate(node_disk_read_bytes_total{{instance=~"{hostname}.*"}}[5m]) / 1024 / 1024'
+        disk_read_bytes_data = await self.query(disk_read_bytes_query)
+        if disk_read_bytes_data["result"]:
+            total_read_mbps = sum(float(r['value'][1]) for r in disk_read_bytes_data['result'])
+            metrics["磁碟讀取速率"] = f"{total_read_mbps:.1f} MB/s"
+        
+        # 增加磁碟寫入吞吐量 (MB/s)
+        disk_write_bytes_query = f'rate(node_disk_written_bytes_total{{instance=~"{hostname}.*"}}[5m]) / 1024 / 1024'
+        disk_write_bytes_data = await self.query(disk_write_bytes_query)
+        if disk_write_bytes_data["result"]:
+            total_write_mbps = sum(float(r['value'][1]) for r in disk_write_bytes_data['result'])
+            metrics["磁碟寫入速率"] = f"{total_write_mbps:.1f} MB/s"
+        
         return metrics

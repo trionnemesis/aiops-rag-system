@@ -3,6 +3,7 @@ LangChain RAG 鏈服務
 使用 LCEL (LangChain Expression Language) 重構 RAG 流程
 """
 import json
+import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from langchain.chains import LLMChain
@@ -49,6 +50,9 @@ class RAGChainService:
         
         # 4. Full RAG Chain
         self.full_rag_chain = self._build_full_rag_chain()
+        
+        # 5. Multi-Query Chain (RAG-Fusion)
+        self.multi_query_chain = self._build_multi_query_chain()
     
     def _build_hyde_chain(self):
         """建立 HyDE (Hypothetical Document Embeddings) 鏈"""
@@ -80,6 +84,57 @@ class RAGChainService:
             return report_chain
         except Exception as e:
             raise ReportGenerationError(f"Failed to build report chain: {str(e)}")
+    
+    def _build_multi_query_chain(self):
+        """建立多查詢生成鏈 (RAG-Fusion)"""
+        try:
+            multi_query_prompt = prompt_manager.get_prompt("multi_query_generation")
+            
+            multi_query_chain = (
+                multi_query_prompt
+                | model_manager.flash_model
+                | StrOutputParser()
+                | (lambda text: [q.strip() for q in text.strip().split('\n') if q.strip()])
+            )
+            
+            return multi_query_chain
+        except Exception as e:
+            raise ReportGenerationError(f"Failed to build multi-query chain: {str(e)}")
+    
+    async def _multi_query_retrieval(self, monitoring_data_str: str) -> List[Any]:
+        """使用多查詢進行檢索 (RAG-Fusion)"""
+        try:
+            # 生成多個查詢
+            queries = await self.multi_query_chain.ainvoke({
+                "monitoring_data": monitoring_data_str
+            })
+            
+            # 對每個查詢進行檢索
+            all_documents = []
+            seen_contents = set()
+            
+            for query in queries[:3]:  # 限制最多3個查詢
+                try:
+                    docs = await vector_store_manager.similarity_search(query, k=5)
+                    # 去重
+                    for doc in docs:
+                        if doc.page_content not in seen_contents:
+                            seen_contents.add(doc.page_content)
+                            all_documents.append(doc)
+                except Exception as e:
+                    import logging
+                    logging.warning(f"Query '{query}' failed: {str(e)}")
+            
+            # 如果多查詢失敗，至少用原始數據查詢一次
+            if not all_documents:
+                all_documents = await vector_store_manager.similarity_search(monitoring_data_str, k=10)
+            
+            return all_documents[:10]  # 返回最多10個文檔
+        except Exception as e:
+            import logging
+            logging.error(f"Multi-query retrieval failed: {str(e)}")
+            # Fallback to single query
+            return await vector_store_manager.similarity_search(monitoring_data_str, k=10)
     
     def _build_full_rag_chain(self):
         """建立完整的 RAG 鏈"""
@@ -136,11 +191,26 @@ class RAGChainService:
             raise ReportGenerationError(f"Failed to build full RAG chain: {str(e)}")
     
     def _safe_retrieval(self, x: Dict[str, Any]) -> List[Any]:
-        """安全的文檔檢索，包含 HyDE 和 fallback"""
+        """安全的文檔檢索，包含多查詢、HyDE 和 fallback"""
+        monitoring_data_str = x["monitoring_data_str"]
+        
+        # 1. 首先嘗試多查詢檢索 (RAG-Fusion)
         try:
-            # 嘗試使用 HyDE
+            import asyncio
+            loop = asyncio.get_event_loop()
+            documents = loop.run_until_complete(
+                self._multi_query_retrieval(monitoring_data_str)
+            )
+            if documents and len(documents) >= 3:  # 如果找到足夠的文檔
+                return documents
+        except Exception as e:
+            import logging
+            logging.warning(f"Multi-query retrieval failed: {str(e)}")
+        
+        # 2. 嘗試使用 HyDE
+        try:
             hyde_query = self.hyde_chain.invoke({
-                "monitoring_data": x["monitoring_data_str"]
+                "monitoring_data": monitoring_data_str
             })
             documents = self.retriever.invoke(hyde_query)
             if documents:
@@ -149,9 +219,9 @@ class RAGChainService:
             import logging
             logging.warning(f"HyDE retrieval failed, using fallback: {str(e)}")
         
-        # 使用 fallback（直接用監控數據檢索）
+        # 3. 使用 fallback（直接用監控數據檢索）
         try:
-            return self.retriever.invoke(x["monitoring_data_str"])
+            return self.retriever.invoke(monitoring_data_str)
         except Exception as e:
             raise DocumentRetrievalError(f"All retrieval methods failed: {str(e)}")
     
@@ -171,7 +241,7 @@ class RAGChainService:
     def _parse_report_sections(self, report_text: str) -> Dict[str, str]:
         """解析報告文本，提取不同部分"""
         # 使用分隔符分割報告
-        parts = report_text.split("建議與行動方案")
+        parts = report_text.split("具體建議")
         
         insight = ""
         recommendations = ""
@@ -180,6 +250,12 @@ class RAGChainService:
             insight = parts[0].replace("洞見分析", "").strip()
         if len(parts) >= 2:
             recommendations = parts[1].strip()
+        
+        # 確保建議部分包含結構化的標籤
+        if recommendations and not any(tag in recommendations for tag in ["[緊急處理]", "[中期優化]", "[永久措施]"]):
+            # 如果沒有結構化標籤，嘗試從原文本中找到
+            if "緊急處理" in report_text or "中期優化" in report_text:
+                recommendations = report_text.split("具體建議")[-1].strip()
         
         return {
             "insight_analysis": insight,
@@ -244,20 +320,44 @@ class RAGChainService:
         """
         monitoring_data_str = json.dumps(monitoring_data, ensure_ascii=False, indent=2)
         
+        # Step 1: 多查詢生成 (RAG-Fusion)
+        multi_queries = []
         try:
-            # Step 1: HyDE 生成
-            hyde_query = await self._get_cached_hyde(monitoring_data_str)
+            multi_queries = await self.multi_query_chain.ainvoke({
+                "monitoring_data": monitoring_data_str
+            })
         except Exception as e:
-            hyde_query = "HyDE generation failed, using fallback"
+            multi_queries = ["Multi-query generation failed"]
         
-        try:
-            # Step 2: 文檔檢索
-            if hyde_query != "HyDE generation failed, using fallback":
-                documents = await vector_store_manager.similarity_search(hyde_query)
-            else:
+        # Step 2: 文檔檢索 (優先使用多查詢)
+        documents = []
+        retrieval_method = "unknown"
+        
+        # 嘗試多查詢檢索
+        if multi_queries and multi_queries[0] != "Multi-query generation failed":
+            try:
+                documents = await self._multi_query_retrieval(monitoring_data_str)
+                retrieval_method = "multi-query"
+            except Exception:
+                pass
+        
+        # 如果多查詢失敗或結果不足，嘗試 HyDE
+        if not documents or len(documents) < 3:
+            try:
+                hyde_query = await self._get_cached_hyde(monitoring_data_str)
+                if hyde_query != "HyDE generation failed, using fallback":
+                    documents = await vector_store_manager.similarity_search(hyde_query)
+                    retrieval_method = "hyde"
+            except Exception:
+                pass
+        
+        # 最後的 fallback
+        if not documents:
+            try:
                 documents = await vector_store_manager.similarity_search(monitoring_data_str)
-        except Exception as e:
-            raise DocumentRetrievalError(f"Failed to retrieve documents: {str(e)}")
+                retrieval_method = "direct"
+            except Exception as e:
+                raise DocumentRetrievalError(f"Failed to retrieve documents: {str(e)}")
         
         # Step 3: 生成摘要
         context = self._generate_summary_context(documents, monitoring_data_str)
@@ -281,7 +381,8 @@ class RAGChainService:
         return {
             "report": report,
             "steps": {
-                "hyde_query": hyde_query,
+                "multi_queries": multi_queries if isinstance(multi_queries, list) else [multi_queries],
+                "retrieval_method": retrieval_method,
                 "documents_found": len(documents),
                 "context_summary": context[:200] + "..." if len(context) > 200 else context
             }
