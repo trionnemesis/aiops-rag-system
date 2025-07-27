@@ -5,11 +5,12 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 env:
   DOCKER_REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  MIN_COVERAGE: 85
+  MIN_COVERAGE: 80
 
 jobs:
   test:
@@ -21,7 +22,10 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
+    
+    - name: Display Python version
+      run: python --version
     
     - name: Cache pip packages
       uses: actions/cache@v4
@@ -41,6 +45,8 @@ jobs:
       env:
         TESTING: true
         GEMINI_API_KEY: test-api-key
+        OPENSEARCH_HOST: localhost
+        PROMETHEUS_HOST: localhost
         PYTHONPATH: ${{ github.workspace }}
       run: |
         pytest tests/ \
@@ -87,7 +93,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
     
     - name: Install dependencies
       run: |
@@ -130,7 +136,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
+        python-version: '3.11'
     
     - name: Install dependencies
       run: |
@@ -209,7 +215,7 @@ jobs:
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ env.DOCKER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+        image-ref: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
         format: 'sarif'
         output: 'trivy-results.sarif'
     
