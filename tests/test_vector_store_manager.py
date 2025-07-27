@@ -48,11 +48,12 @@ class TestVectorStoreManager:
     def test_opensearch_client_property(self, manager):
         """Test opensearch_client property lazy initialization"""
         with patch("src.services.langchain.vector_store_manager.OpenSearch") as mock_opensearch:
-            mock_opensearch.return_value = Mock()
+            mock_instance = Mock()
+            mock_opensearch.return_value = mock_instance
             
             # First access should create client
             client1 = manager.opensearch_client
-            assert client1 is not None
+            assert client1 is mock_instance
             mock_opensearch.assert_called_once_with(
                 hosts=[{
                     'host': settings.opensearch_host, 

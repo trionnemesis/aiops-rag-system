@@ -35,7 +35,8 @@ class TestPromptManager:
         # Verify prompt can be formatted with expected variables
         formatted = prompt.format(monitoring_data={"test": "data"})
         assert "監控數據" in formatted
-        assert '{"test": "data"}' in formatted
+        # 修正：比對 Python 物件的字串表示法
+        assert "{'test': 'data'}" in formatted
 
     def test_get_prompt_not_found(self, manager):
         """Test getting a non-existent prompt"""
