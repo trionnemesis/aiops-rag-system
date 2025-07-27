@@ -86,35 +86,35 @@ class RAGChainService:
             RunnableParallel(
                 monitoring_data=RunnablePassthrough(),
                 monitoring_data_str=RunnableLambda(prepare_monitoring_data)
-            )
+            ) |
             # HyDE 生成
-            | RunnableParallel(
+            RunnableParallel(
                 monitoring_data=lambda x: x["monitoring_data"],
                 monitoring_data_str=lambda x: x["monitoring_data_str"],
                 hyde_query=lambda x: self.hyde_chain.invoke({
                     "monitoring_data": x["monitoring_data_str"]
                 })
-            )
+            ) |
             # 檢索相關文檔
-            | RunnableParallel(
+            RunnableParallel(
                 monitoring_data=lambda x: x["monitoring_data"],
                 monitoring_data_str=lambda x: x["monitoring_data_str"],
                 documents=lambda x: self.retriever.invoke(x["hyde_query"])
-            )
+            ) |
             # 格式化文檔並生成摘要
-            | RunnableParallel(
+            RunnableParallel(
                 monitoring_data=lambda x: x["monitoring_data"],
                 monitoring_data_str=lambda x: x["monitoring_data_str"],
                 context=lambda x: self._generate_summary_context(
                     x["documents"], 
                     x["monitoring_data_str"]
                 )
-            )
+            ) |
             # 生成最終報告
-            | lambda x: self.report_chain.invoke({
+            (lambda x: self.report_chain.invoke({
                 "monitoring_data": x["monitoring_data_str"],
                 "context": x["context"]
-            })
+            }))
         )
         
         return chain
