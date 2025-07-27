@@ -68,7 +68,7 @@ class RAGChainService:
     def _build_report_chain(self):
         """建立報告生成鏈"""
         try:
-            report_prompt = prompt_manager.get_prompt("report_generation")
+            report_prompt = prompt_manager.get_prompt("final_report")
             
             report_chain = (
                 report_prompt
