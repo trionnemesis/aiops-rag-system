@@ -15,7 +15,9 @@
 
 ### 💻 [開發指南](./development/)
 - [本地環境設置](./development/local-setup.md) - 開發環境配置指南
+- [錯誤處理最佳實踐](./development/error-handling.md) - 錯誤處理機制說明
 - [優化指南](./development/optimization-guide.md) - RAG 系統優化措施
+- [系統優化說明](./development/optimizations.md) - 系統優化實作細節
 - [優化總結](./development/OPTIMIZATION_SUMMARY.md) - 優化實作總結
 
 ### 🚀 [部署指南](./deployment/)
