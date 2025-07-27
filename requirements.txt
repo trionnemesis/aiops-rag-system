@@ -1,24 +1,39 @@
-fastapi==0.109.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
-python-multipart==0.0.18
-aiohttp==3.10.11
-opensearch-py==2.4.0
-prometheus-client==0.19.0
-google-generativeai==0.3.1
-python-dotenv==1.0.0
-numpy==1.26.4
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.2
-async-lru==2.0.4
-# LangChain dependencies
-langchain==0.2.5
-langchain-google-genai==0.0.5
-langchain-community==0.2.9
-langchain-core==0.1.35
-tiktoken==0.5.2
-# Ensure starlette is up to date (will be managed by fastapi)
+# FastAPI 和相關套件
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-multipart
+
+# HTTP 和網路相關
+aiohttp
+httpx
+async-lru
+
+# 資料庫和搜尋
+opensearch-py
+
+# 監控
+prometheus-client
+
+# AI 和機器學習
+google-generativeai
+numpy
+
+# LangChain 生態系統
+langchain
+langchain-google-genai
+langchain-community
+langchain-core
+tiktoken
+
+# 開發和配置
+python-dotenv
+
+# 測試相關（通常在 CI/CD 中安裝）
+pytest
+pytest-asyncio
+
+# 確保 starlette 是最新版本（由 fastapi 管理）
 starlette>=0.47.2
 
