@@ -23,9 +23,9 @@ class TestModelManager:
         assert manager._embedding_model is None
         assert manager._is_testing is True
 
-    # 關鍵修正：使用 patch.object 直接作用在模組上
+    # 關鍵修正：使用 patch 直接作用在模組導入路徑上
     def test_flash_model_property_lazy_init(self, manager):
-        with patch.object(model_manager_module, 'ChatGoogleGenerativeAI') as mock_chat:
+        with patch('src.services.langchain.model_manager.ChatGoogleGenerativeAI') as mock_chat:
             mock_instance = Mock()
             mock_chat.return_value = mock_instance
             
@@ -38,7 +38,7 @@ class TestModelManager:
             assert mock_chat.call_count == 1
 
     def test_pro_model_property_lazy_init(self, manager):
-        with patch.object(model_manager_module, 'ChatGoogleGenerativeAI') as mock_chat:
+        with patch('src.services.langchain.model_manager.ChatGoogleGenerativeAI') as mock_chat:
             mock_instance = Mock()
             mock_chat.return_value = mock_instance
             
@@ -51,7 +51,7 @@ class TestModelManager:
             assert mock_chat.call_count == 1
 
     def test_embedding_model_property_lazy_init(self, manager):
-        with patch.object(model_manager_module, 'GoogleGenerativeAIEmbeddings') as mock_embeddings:
+        with patch('src.services.langchain.model_manager.GoogleGenerativeAIEmbeddings') as mock_embeddings:
             mock_instance = Mock()
             mock_embeddings.return_value = mock_instance
             
@@ -65,8 +65,8 @@ class TestModelManager:
 
     def test_model_manager_singleton(self):
         # 確保全域實例的行為符合預期
-        with patch.object(model_manager_module, 'ChatGoogleGenerativeAI'), \
-             patch.object(model_manager_module, 'GoogleGenerativeAIEmbeddings'):
+        with patch('src.services.langchain.model_manager.ChatGoogleGenerativeAI'), \
+             patch('src.services.langchain.model_manager.GoogleGenerativeAIEmbeddings'):
             
             assert isinstance(model_manager, ModelManager)
             # 存取屬性應觸發初始化

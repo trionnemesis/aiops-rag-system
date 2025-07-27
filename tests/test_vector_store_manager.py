@@ -16,9 +16,9 @@ class TestVectorStoreManager:
         manager_instance._vector_store = None
         return manager_instance
 
-    # 關鍵修正：使用 patch.object
+    # 關鍵修正：使用 patch 直接作用在模組導入路徑上
     def test_opensearch_client_property(self, manager):
-        with patch.object(vector_store_manager_module, 'OpenSearch') as mock_opensearch:
+        with patch('opensearchpy.OpenSearch') as mock_opensearch:
             mock_instance = Mock()
             mock_opensearch.return_value = mock_instance
             client = manager.opensearch_client
@@ -26,8 +26,8 @@ class TestVectorStoreManager:
             mock_opensearch.assert_called_once()
 
     def test_vector_store_property(self, manager):
-        # 關鍵修正：patch model_manager 的匯入路徑
-        with patch.object(vector_store_manager_module, 'OpenSearchVectorSearch') as mock_vectorstore, \
+        # 關鍵修正：patch 正確的導入路徑
+        with patch('langchain_community.vectorstores.OpenSearchVectorSearch') as mock_vectorstore, \
              patch('src.services.langchain.vector_store_manager.model_manager') as mock_model_manager:
             
             mock_instance = Mock()
@@ -63,7 +63,7 @@ class TestVectorStoreManager:
                 mock_hyde_retriever_class.assert_called_with(
                     base_retriever=manager.as_retriever(),
                     llm=mock_model_manager.flash_model,
-                    prompt_template=mock_hyde_retriever_class.call_args[1]['prompt_template']
+                    prompt=mock_hyde_retriever_class.call_args[1]['prompt']
                 )
 
     def test_vector_store_manager_singleton(self):
