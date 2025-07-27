@@ -1,0 +1,146 @@
+name: Security Check
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+  push:
+    paths:
+      - 'requirements.txt'
+      - 'requirements-*.txt'
+      - 'pyproject.toml'
+      - 'setup.py'
+
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Run pip-audit
+      id: pip_audit
+      run: |
+        pip install pip-audit
+        
+        # Run pip-audit and capture the output
+        echo "## Running pip-audit security scan..." | tee security-report.md
+        echo "" | tee -a security-report.md
+        
+        # Check for vulnerabilities and generate report
+        if pip-audit --desc --format markdown >> security-report.md 2>&1; then
+          echo "✅ No vulnerabilities found!" | tee -a security-report.md
+          echo "has_vulnerabilities=false" >> $GITHUB_OUTPUT
+        else
+          echo "has_vulnerabilities=true" >> $GITHUB_OUTPUT
+          echo "" | tee -a security-report.md
+          echo "### ⚠️ Vulnerabilities found! Please update the affected packages." | tee -a security-report.md
+        fi
+        
+        # Also generate JSON report for detailed analysis
+        pip-audit --format json --output pip-audit-report.json || true
+    
+    - name: Run safety check
+      run: |
+        pip install safety
+        echo "" | tee -a security-report.md
+        echo "## Running safety check..." | tee -a security-report.md
+        echo "" | tee -a security-report.md
+        
+        # Run safety and append to report
+        if safety check --output text >> security-report.md 2>&1; then
+          echo "✅ Safety check passed!" | tee -a security-report.md
+        else
+          echo "⚠️ Safety found vulnerabilities!" | tee -a security-report.md
+        fi
+    
+    - name: Upload security reports
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-reports
+        path: |
+          security-report.md
+          pip-audit-report.json
+        retention-days: 30
+    
+    - name: Create issue if vulnerabilities found
+      if: steps.pip_audit.outputs.has_vulnerabilities == 'true' && github.event_name == 'schedule'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('security-report.md', 'utf8');
+          
+          // Check if there's already an open security issue
+          const issues = await github.rest.issues.listForRepo({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            state: 'open',
+            labels: ['security', 'dependencies']
+          });
+          
+          const existingIssue = issues.data.find(issue => 
+            issue.title.includes('Security Vulnerabilities Detected')
+          );
+          
+          const issueBody = `## Security Scan Report - ${new Date().toISOString().split('T')[0]}
+          
+${report}
+
+### Action Required
+Please update the vulnerable packages listed above to their recommended versions.
+
+### Automated scan details
+- Workflow run: [#${context.runNumber}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+- Commit: ${context.sha}
+`;
+          
+          if (existingIssue) {
+            // Update existing issue
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: existingIssue.number,
+              body: issueBody
+            });
+          } else {
+            // Create new issue
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔐 Security Vulnerabilities Detected in Dependencies',
+              body: issueBody,
+              labels: ['security', 'dependencies', 'automated']
+            });
+          }
+    
+    - name: Comment on PR if vulnerabilities found
+      if: steps.pip_audit.outputs.has_vulnerabilities == 'true' && github.event_name == 'pull_request'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const report = fs.readFileSync('security-report.md', 'utf8');
+          
+          github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: `## ⚠️ Security Scan Results
+            
+${report}
+
+Please update the vulnerable packages before merging this PR.`
+          });

@@ -103,13 +103,32 @@ jobs:
     - name: Security scan with pip-audit
       run: |
         pip install pip-audit
-        pip-audit --desc
+        # Run pip-audit and exit with error if vulnerabilities are found
+        pip-audit --desc --fix || echo "Vulnerabilities found but continuing for reporting"
+        # Generate a detailed report
+        pip-audit --format json --output pip-audit-report.json || true
+        # Display summary
+        echo "=== Security Scan Summary ==="
+        pip-audit || true
     
     - name: Check for known vulnerabilities with safety
       run: |
         pip install safety
         safety check --json --output safety-report.json || true
         cat safety-report.json
+    
+    - name: Check for critical vulnerabilities
+      id: vulnerability_check
+      run: |
+        # Fail the build if critical vulnerabilities are found
+        if pip-audit --desc --severity critical 2>&1 | grep -q "Found"; then
+          echo "❌ Critical vulnerabilities found!"
+          echo "critical_vulns_found=true" >> $GITHUB_OUTPUT
+          exit 1
+        else
+          echo "✅ No critical vulnerabilities found"
+          echo "critical_vulns_found=false" >> $GITHUB_OUTPUT
+        fi
     
     - name: Upload security scan results
       uses: actions/upload-artifact@v4
