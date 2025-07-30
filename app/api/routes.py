@@ -1,0 +1,72 @@
+from __future__ import annotations
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from typing import Any, Dict
+import time, uuid
+
+from langchain_community.vectorstores import OpenSearchVectorSearch
+from langchain_core.documents import Document
+
+from app.graph.build import build_graph
+
+router = APIRouter()
+
+# ======== 這裡沿用你現有的 llm / retriever 物件 ========
+# llm: 你已配置好的 LLM（例如 Gemini/OpenAI 的 LangChain 介面）
+llm = ...  # TODO: 注入你現有的 llm
+# retriever: 你現有的 OpenSearch 向量檢索（務必對應 knn_vector）
+retriever = ...  # TODO: 注入你現有的 retriever
+
+# （選配）BM25 與 RRF：若未準備，保留 None，整體仍可運作
+def bm25_search_fn(query: str, top_k: int = 8):
+    # TODO: 以 opensearch-py 呼叫 _search + match 查詢回傳 List[Document]
+    return []
+
+# 建立一次 graph（服務啟動時）
+policy = {
+    "use_hyde": True,              # 可按情況調整
+    "use_multi_query": True,
+    "multi_query_alts": 2,
+    "use_rrf": False,             # 若你已配置 BM25 與 RRF，可改 True
+    "top_k": 8,
+    "max_ctx_chars": 6000,
+    "strict_citation": True,
+    "fallback_text": "（臨時降階回覆，稍後補充細節與來源）",
+    "min_docs": 2,
+    "min_answer_len": 40,
+}
+graph_app = build_graph(
+    llm=llm,
+    retriever=retriever,
+    bm25_search_fn=bm25_search_fn,    # 沒有就換成 None
+    rrf_fuse_fn=None,                 # 沒有就 None（或使用預設 simple_rrf_fuse）
+)
+
+class RAGRequest(BaseModel):
+    query: str
+    # 保留你原本需要的欄位，這裡只展示最小必要
+
+@router.post("/rag/report")
+def rag_report(req: RAGRequest) -> Dict[str, Any]:
+    """維持原路由與回傳結構；內部切到 LangGraph 執行"""
+    start = time.time()
+    try:
+        # run_id 便於追蹤
+        cfg = {"configurable": {"run_id": str(uuid.uuid4())}}
+        result = graph_app.invoke({"query": req.query}, config=cfg)
+        latency = int((time.time() - start) * 1000)
+
+        # 你原本的回傳格式若不同，請在這裡轉換；以下是常見結構
+        return {
+            "ok": True,
+            "data": {
+                "answer": result.get("answer", ""),
+                "metrics": {
+                    **result.get("metrics", {}),
+                    "latency_ms": latency,
+                },
+                "warnings": result.get("metrics", {}).get("warnings", []),
+            },
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"graph_error: {e}")

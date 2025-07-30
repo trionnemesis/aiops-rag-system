@@ -1,39 +1,21 @@
-# FastAPI 和相關套件
-fastapi
-uvicorn[standard]
-pydantic
-pydantic-settings
-python-multipart
+# LangGraph 核心相依
+langgraph>=0.0.20
+langchain-core>=0.1.0
+langchain-community>=0.0.10
 
-# HTTP 和網路相關
-aiohttp
-httpx
-async-lru
+# OpenSearch
+opensearch-py>=2.3.0
 
-# 資料庫和搜尋
-opensearch-py
+# FastAPI
+fastapi>=0.104.0
+uvicorn>=0.24.0
+pydantic>=2.4.0
 
-# 監控
-prometheus-client
+# LLM Providers (選擇你需要的)
+langchain-openai>=0.0.5  # for OpenAI
+langchain-google-genai>=0.0.5  # for Google Gemini
 
-# AI 和機器學習
-google-generativeai
-numpy
-
-# LangChain 生態系統
-langchain
-langchain-google-genai
-langchain-community
-langchain-core
-tiktoken
-
-# 開發和配置
-python-dotenv
-
-# 測試相關（通常在 CI/CD 中安裝）
-pytest
-pytest-asyncio
-
-# 確保 starlette 是最新版本（由 fastapi 管理）
-starlette>=0.47.2
+# 其他可能需要的
+python-dotenv>=1.0.0  # 環境變數管理
+httpx>=0.25.0  # async HTTP client
 
