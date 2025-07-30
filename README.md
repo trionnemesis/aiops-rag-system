@@ -10,6 +10,7 @@
 - **LangChain LCEL**: 聲明式 RAG 鏈，支援 fallback 機制
 - **LangGraph 整合**: DAG 控制流程，可插拔式架構設計
 - **HyDE + RAG-Fusion**: 多策略文檔檢索和內容生成
+- **KNN 向量搜尋**: HNSW 演算法實作，支援多種搜尋策略
 
 ## ⚡ 核心優勢
 
@@ -18,6 +19,7 @@
 | 🤖 **智慧分析** | HyDE + RAG-Fusion 架構 | 深度維運洞見 |
 | 🔗 **LangChain LCEL** | 聲明式 RAG 流程 | 支援 fallback 機制 |
 | 🌐 **LangGraph DAG** | 可插拔控制流程 | 靈活的策略組合 |
+| 🔍 **KNN 向量搜尋** | HNSW 演算法優化 | 高精度語義檢索 |
 | ⚡ **高效能** | 智慧快取機制 | 85% API 成本節省 |
 | 🛡️ **企業級** | 完整錯誤處理 | 85%+ 測試覆蓋率 |
 | 📊 **即時監控** | Prometheus + Grafana | 即時系統狀態 |
@@ -75,7 +77,7 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
        ▼                    │                     
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
 │ Prometheus  │     │  OpenSearch  │     │   Grafana   │
-│  Metrics    │     │Vector Store  │     │ Dashboard   │
+│  Metrics    │     │ KNN + HNSW   │     │ Dashboard   │
 └─────────────┘     └──────────────┘     └─────────────┘
 ```
 

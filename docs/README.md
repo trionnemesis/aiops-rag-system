@@ -4,6 +4,11 @@
 
 ## 🆕 最新文檔
 
+### 🔍 KNN 向量搜尋
+- [KNN 向量搜尋架構](./architecture/knn-vector-search.md) - KNN 向量搜尋實作與 HNSW 演算法詳解
+- [KNN 索引建置指南](./development/knn-index-guide.md) - KNN 向量索引建立與管理
+- [KNN 搜尋 API](./api/knn-search-api.md) - KNN 向量搜尋 API 使用指南
+
 ### 🔗 LangChain 整合
 - [重構報告](./langchain_refactoring_report.md) - LangChain LCEL 重構詳細說明
 - [遷移指南](./langchain_migration_guide.md) - 從原實作遷移到 LangChain 版本
@@ -13,9 +18,11 @@
 
 ### 🏗️ [系統架構](./architecture/)
 - [系統設計](./architecture/system-design.md) - 整體架構和核心組件說明
+- [KNN 向量搜尋架構](./architecture/knn-vector-search.md) - KNN 向量搜尋實作與 HNSW 演算法詳解
 
 ### 💻 [開發指南](./development/)
 - [本地環境設置](./development/local-setup.md) - 開發環境配置指南
+- [KNN 索引建置指南](./development/knn-index-guide.md) - KNN 向量索引建立與管理
 - [錯誤處理最佳實踐](./development/error-handling.md) - 錯誤處理機制說明
 - [優化指南](./development/optimization-guide.md) - RAG 系統優化措施
 - [系統優化說明](./development/optimizations.md) - 系統優化實作細節
@@ -26,6 +33,7 @@
 
 ### 📡 [API 文檔](./api/)
 - [端點參考](./api/endpoints.md) - 詳細的 API 端點說明
+- [KNN 搜尋 API](./api/knn-search-api.md) - KNN 向量搜尋 API 使用指南
 
 ## 🔗 快速導航
 

@@ -19,3 +19,8 @@ langchain-google-genai>=0.0.5  # for Google Gemini
 python-dotenv>=1.0.0  # 環境變數管理
 httpx>=0.25.0  # async HTTP client
 
+# KNN 向量搜尋相關
+tqdm>=4.66.0  # 進度條顯示
+colorama>=0.4.6  # 彩色輸出
+numpy>=1.24.0  # 向量計算
+

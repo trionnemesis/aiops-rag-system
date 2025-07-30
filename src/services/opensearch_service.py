@@ -1,8 +1,13 @@
 from opensearchpy import OpenSearch, AsyncOpenSearch
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import numpy as np
 from src.config import settings
+from src.services.knn_search_service import KNNSearchService, KNNSearchParams, SearchStrategy, SearchResult
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class OpenSearchService:
     def __init__(self):
@@ -12,6 +17,15 @@ class OpenSearchService:
             verify_certs=False
         )
         self.index_name = settings.opensearch_index
+        
+        # 初始化 KNN 搜尋服務
+        self.knn_service = KNNSearchService(index_name=self.index_name)
+        
+        # 初始化 Embedding 模型 (確保與 KNN 服務使用相同模型)
+        self.embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/embedding-001",
+            google_api_key=settings.google_api_key
+        )
         
     async def create_index(self):
         """創建 OpenSearch 索引與映射"""
@@ -69,30 +83,83 @@ class OpenSearchService:
         )
         return response
     
-    async def search_similar_documents(self, query_embedding: List[float], 
-                                     k: int = None) -> List[Dict[str, Any]]:
-        """使用 k-NN 搜尋相似文檔"""
+    async def search_similar_documents(self, query_text: str = None, 
+                                     query_embedding: List[float] = None,
+                                     k: int = None,
+                                     strategy: SearchStrategy = SearchStrategy.HYBRID,
+                                     filter_dict: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """使用 k-NN 搜尋相似文檔
+        
+        Args:
+            query_text: 查詢文字 (如果提供將生成 embedding)
+            query_embedding: 查詢向量 (如果已有向量可直接使用)
+            k: 返回結果數
+            strategy: 搜尋策略
+            filter_dict: 過濾條件
+            
+        Returns:
+            搜尋結果列表
+        """
         k = k or settings.top_k_results
         
-        query = {
-            "size": k,
-            "query": {
-                "knn": {
-                    "embedding": {
-                        "vector": query_embedding,
-                        "k": k
+        # 如果提供文字而非向量，使用 KNN 服務進行搜尋
+        if query_text:
+            params = KNNSearchParams(
+                k=k,
+                filter=filter_dict,
+                num_candidates=k * 10  # HNSW 候選數量
+            )
+            
+            results = await self.knn_service.knn_search(
+                query_text=query_text,
+                params=params,
+                strategy=strategy
+            )
+            
+            # 轉換為原格式
+            return [{
+                "event_id": r.doc_id,
+                "title": r.title,
+                "content": r.content,
+                "tags": r.metadata.get("tags", []),
+                "score": r.score
+            } for r in results]
+        
+        # 向後兼容：如果直接提供向量
+        elif query_embedding:
+            # 確保向量維度正確
+            if len(query_embedding) != settings.opensearch_embedding_dim:
+                logger.warning(f"向量維度不符: 預期 {settings.opensearch_embedding_dim}, 實際 {len(query_embedding)}")
+            
+            query = {
+                "size": k,
+                "query": {
+                    "knn": {
+                        "embedding": {
+                            "vector": query_embedding,
+                            "k": k,
+                            "num_candidates": k * 10
+                        }
                     }
-                }
-            },
-            "_source": ["event_id", "title", "content", "tags"]
-        }
+                },
+                "_source": ["event_id", "title", "content", "tags"]
+            }
+            
+            if filter_dict:
+                query["query"]["knn"]["embedding"]["filter"] = filter_dict
+            
+            response = self.client.search(
+                index=self.index_name,
+                body=query
+            )
+            
+            return [{
+                **hit["_source"],
+                "score": hit["_score"]
+            } for hit in response["hits"]["hits"]]
         
-        response = self.client.search(
-            index=self.index_name,
-            body=query
-        )
-        
-        return [hit["_source"] for hit in response["hits"]["hits"]]
+        else:
+            raise ValueError("必須提供 query_text 或 query_embedding")
     
     async def delete_index(self):
         """刪除索引（用於測試）"""
