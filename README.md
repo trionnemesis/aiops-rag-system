@@ -1,10 +1,15 @@
 # AIOps 智慧維運報告 RAG 系統
 
-> 基於 LangChain LCEL 和 HyDE 技術的智慧維運報告生成系統
+> 基於 LangChain LCEL + LangGraph 的智慧維運報告生成系統
 
 ## 🎯 系統簡介
 
-本系統自動分析監控數據並生成專業的維運洞見報告，採用先進的 RAG (檢索增強生成) 架構，結合 HyDE 技術和多查詢檢索策略，為 DevOps 團隊提供精準的系統分析和可執行的優化建議。
+本系統自動分析監控數據並生成專業的維運洞見報告，採用先進的 RAG (檢索增強生成) 架構，整合 HyDE 技術、多查詢檢索策略和 LangGraph DAG 控制流程，為 DevOps 團隊提供精準的系統分析和可執行的優化建議。
+
+### 🆕 最新架構升級
+- **LangChain LCEL**: 聲明式 RAG 鏈，支援 fallback 機制
+- **LangGraph 整合**: DAG 控制流程，可插拔式架構設計
+- **HyDE + RAG-Fusion**: 多策略文檔檢索和內容生成
 
 ## ⚡ 核心優勢
 
@@ -12,6 +17,7 @@
 |------|------|------|
 | 🤖 **智慧分析** | HyDE + RAG-Fusion 架構 | 深度維運洞見 |
 | 🔗 **LangChain LCEL** | 聲明式 RAG 流程 | 支援 fallback 機制 |
+| 🌐 **LangGraph DAG** | 可插拔控制流程 | 靈活的策略組合 |
 | ⚡ **高效能** | 智慧快取機制 | 85% API 成本節省 |
 | 🛡️ **企業級** | 完整錯誤處理 | 85%+ 測試覆蓋率 |
 | 📊 **即時監控** | Prometheus + Grafana | 即時系統狀態 |
@@ -57,11 +63,16 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   FastAPI   │────▶│  LangChain   │────▶│   Gemini    │
-│     API     │     │   RAG Chain  │     │  API (LLM)  │
+│   FastAPI   │────▶│  LangGraph   │────▶│   Gemini    │
+│     API     │     │   DAG Flow   │     │  API (LLM)  │
 └─────────────┘     └──────────────┘     └─────────────┘
        │                    │                     
-       ▼                    ▼                    
+       │                    ▼                    
+       │            ┌──────────────┐     ┌─────────────┐
+       │            │  LangChain   │────▶│    HyDE     │
+       │            │   RAG Chain  │     │ Multi-Query │
+       │            └──────────────┘     └─────────────┘
+       ▼                    │                     
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
 │ Prometheus  │     │  OpenSearch  │     │   Grafana   │
 │  Metrics    │     │Vector Store  │     │ Dashboard   │
@@ -120,6 +131,7 @@ uvicorn src.main:app --reload
 ### 🔗 LangChain 整合
 - [重構報告](./docs/langchain_refactoring_report.md) - LangChain LCEL 重構詳細說明
 - [遷移指南](./docs/langchain_migration_guide.md) - 從原實作遷移指南
+- [LangGraph RAG 整合](./docs/README_LANGGRAPH_INTEGRATION.md) - LangGraph DAG 實作指南
 - [GitHub Actions 變更](./docs/github-actions-changes.md) - CI/CD 配置更新
 
 ### 📚 文檔索引
