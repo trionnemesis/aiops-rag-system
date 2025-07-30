@@ -4,9 +4,10 @@
 
 ## 🆕 最新文檔
 
-### 🔗 [LangChain 重構](./langchain/)
+### 🔗 LangChain 整合
 - [重構報告](./langchain_refactoring_report.md) - LangChain LCEL 重構詳細說明
 - [遷移指南](./langchain_migration_guide.md) - 從原實作遷移到 LangChain 版本
+- [LangGraph RAG 整合](./README_LANGGRAPH_INTEGRATION.md) - LangGraph DAG 實作指南
 
 ## 📁 文檔結構
 
@@ -33,6 +34,7 @@
 2. 按照 [本地環境設置](./development/local-setup.md) 配置開發環境
 3. 參考 [API 端點參考](./api/endpoints.md) 開始 API 調用
 4. 🆕 了解 [LangChain 重構](./langchain_refactoring_report.md) 掌握最新架構
+5. 🔥 探索 [LangGraph RAG 整合](./README_LANGGRAPH_INTEGRATION.md) 學習 DAG 控制流程
 
 ### 部署上線
 1. 閱讀 [Docker 部署指南](./deployment/docker-guide.md)
@@ -47,7 +49,8 @@
 ### LangChain 升級
 1. 閱讀 [LangChain 重構報告](./langchain_refactoring_report.md) 了解新架構
 2. 參考 [遷移指南](./langchain_migration_guide.md) 進行升級
-3. 查看 `examples/langchain_rag_example.py` 學習使用方式
+3. 了解 [LangGraph RAG 整合](./README_LANGGRAPH_INTEGRATION.md) 掌握 DAG 實作
+4. 查看 `examples/langchain_rag_example.py` 學習使用方式
 
 ## 📋 文檔維護
 
