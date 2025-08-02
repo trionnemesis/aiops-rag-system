@@ -1,86 +1,70 @@
-# 📚 文檔目錄
+# 📚 AIOps RAG 系統文檔目錄
 
-本目錄包含 AIOps 智慧維運報告 RAG 系統的完整技術文檔。
+歡迎查閱 AIOps 智慧維運報告 RAG 系統的完整文檔！
 
-## 🆕 最新文檔
+## 📑 文檔分類
 
-### 🔍 KNN 向量搜尋
-- [KNN 向量搜尋架構](./architecture/knn-vector-search.md) - KNN 向量搜尋實作與 HNSW 演算法詳解
-- [KNN 索引建置指南](./development/knn-index-guide.md) - KNN 向量索引建立與管理
-- [KNN 搜尋 API](./api/knn-search-api.md) - KNN 向量搜尋 API 使用指南
-
-### 🔗 LangChain 整合
-- [重構報告](./langchain_refactoring_report.md) - LangChain LCEL 重構詳細說明
-- [遷移指南](./langchain_migration_guide.md) - 從原實作遷移到 LangChain 版本
-- [LangGraph RAG 整合](./README_LANGGRAPH_INTEGRATION.md) - LangGraph DAG 實作指南
-
-## 📁 文檔結構
-
-### 🏗️ [系統架構](./architecture/)
+### 🏗️ 系統架構
 - [系統設計](./architecture/system-design.md) - 整體架構和核心組件說明
-- [KNN 向量搜尋架構](./architecture/knn-vector-search.md) - KNN 向量搜尋實作與 HNSW 演算法詳解
+- [LangGraph RAG 整合](./README_LANGGRAPH_INTEGRATION.md) - LangGraph DAG 實作指南
+- [LangExtract 整合指南](./langextract-integration.md) - 結構化資訊提取服務整合 🆕
 
-### 💻 [開發指南](./development/)
+### 💻 開發指南
 - [本地環境設置](./development/local-setup.md) - 開發環境配置指南
-- [KNN 索引建置指南](./development/knn-index-guide.md) - KNN 向量索引建立與管理
-- [錯誤處理最佳實踐](./development/error-handling.md) - 錯誤處理機制說明
-- [優化指南](./development/optimization-guide.md) - RAG 系統優化措施
-- [系統優化說明](./development/optimizations.md) - 系統優化實作細節
-- [優化總結](./development/OPTIMIZATION_SUMMARY.md) - 優化實作總結
+- [錯誤處理最佳實踐](./development/error-handling.md) - 錯誤處理機制詳解
+- [效能優化指南](./development/optimization-guide.md) - RAG 系統優化策略
+- [系統優化說明](./development/optimizations.md) - 優化實作細節
+- [優化總結](./development/OPTIMIZATION_SUMMARY.md) - 優化成果總覽
+- [向量檢索效能優化](./vector-performance-optimization.md) - 向量搜尋效能監控與優化
 
-### 🚀 [部署指南](./deployment/)
+### 🚀 部署指南
 - [Docker 部署](./deployment/docker-guide.md) - 容器化部署完整指南
 
-### 📡 [API 文檔](./api/)
+### 📡 API 文檔
 - [端點參考](./api/endpoints.md) - 詳細的 API 端點說明
-- [KNN 搜尋 API](./api/knn-search-api.md) - KNN 向量搜尋 API 使用指南
+- [KNN 搜尋 API](./api/knn-search-api.md) - KNN 向量搜尋介面文檔
 
-## 🔗 快速導航
+### 🔗 整合與遷移
+- [LangChain 重構報告](./langchain_refactoring_report.md) - LangChain LCEL 重構詳細說明
+- [LangChain 遷移指南](./langchain_migration_guide.md) - 從原實作遷移到 LCEL 指南
+- [GitHub Actions 變更](./github-actions-changes.md) - CI/CD 配置更新說明
+
+## 🎯 快速導航
 
 ### 新手入門
-1. 閱讀 [系統設計](./architecture/system-design.md) 了解整體架構
+1. 先閱讀 [系統設計](./architecture/system-design.md) 了解整體架構
 2. 按照 [本地環境設置](./development/local-setup.md) 配置開發環境
-3. 參考 [API 端點參考](./api/endpoints.md) 開始 API 調用
-4. 🆕 了解 [LangChain 重構](./langchain_refactoring_report.md) 掌握最新架構
-5. 🔥 探索 [LangGraph RAG 整合](./README_LANGGRAPH_INTEGRATION.md) 學習 DAG 控制流程
+3. 查看 [端點參考](./api/endpoints.md) 開始使用 API
 
-### 部署上線
-1. 閱讀 [Docker 部署指南](./deployment/docker-guide.md)
-2. 配置生產環境參數
-3. 執行部署和監控
+### 進階開發
+1. 學習 [錯誤處理最佳實踐](./development/error-handling.md) 提升程式碼品質
+2. 研究 [效能優化指南](./development/optimization-guide.md) 優化系統效能
+3. 參考 [LangChain 重構報告](./langchain_refactoring_report.md) 了解架構演進
 
-### 性能優化
-1. 了解 [優化指南](./development/optimization-guide.md) 中的優化原理
-2. 查看 [優化總結](./development/OPTIMIZATION_SUMMARY.md) 了解實作細節
-3. 監控系統性能指標
+### 系統部署
+1. 使用 [Docker 部署](./deployment/docker-guide.md) 快速部署系統
+2. 配置 [GitHub Actions](./github-actions-changes.md) 實現自動化 CI/CD
 
-### LangChain 升級
-1. 閱讀 [LangChain 重構報告](./langchain_refactoring_report.md) 了解新架構
-2. 參考 [遷移指南](./langchain_migration_guide.md) 進行升級
-3. 了解 [LangGraph RAG 整合](./README_LANGGRAPH_INTEGRATION.md) 掌握 DAG 實作
-4. 查看 `examples/langchain_rag_example.py` 學習使用方式
+### 最新功能
+1. 🔥 探索 [LangGraph RAG 整合](./README_LANGGRAPH_INTEGRATION.md) 學習 DAG 控制流程
+2. 🆕 了解 [LangExtract 整合指南](./langextract-integration.md) 實現結構化資訊提取
+3. ⚡ 查看 [向量檢索效能優化](./vector-performance-optimization.md) 提升搜尋效能
 
-## 📋 文檔維護
+## 📝 文檔規範
 
-### 貢獻指南
-- 文檔遵循 Markdown 格式
-- 新增功能時請同步更新相關文檔
-- 圖表使用 Mermaid 語法
-- 程式碼範例要包含註解
+- 所有文檔使用 Markdown 格式
+- 包含清晰的標題層級結構
+- 提供程式碼範例和實際案例
+- 保持內容更新與準確性
 
-### 版本管理
-- 重大變更會更新版本號
-- 向後相容性變更會在文檔中標註
-- 廢棄功能會有明確的遷移指南
+## 🤝 貢獻文檔
 
-### 反饋與改進
-如發現文檔有任何問題，請：
-1. 提交 GitHub Issue
-2. 發送 Pull Request
-3. 聯絡維護團隊
+歡迎改進和補充文檔！請遵循以下原則：
+1. 保持格式一致性
+2. 提供實用的範例
+3. 確保技術準確性
+4. 更新相關索引連結
 
 ---
 
-📝 **文檔最後更新**: 2025-01-28  
-🔄 **更新頻率**: 跟隨代碼版本更新  
-👥 **維護者**: 開發團隊
+💡 **提示**: 使用 `Ctrl+F` 快速搜尋您需要的內容！
