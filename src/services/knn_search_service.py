@@ -10,10 +10,20 @@ from datetime import datetime
 import logging
 from dataclasses import dataclass
 from enum import Enum
+import time
 
 from src.config import settings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.documents import Document
+from src.services.prometheus_service import (
+    vector_search_counter,
+    vector_search_latency,
+    vector_search_results,
+    ef_search_value,
+    opensearch_cluster_health,
+    opensearch_index_docs,
+    opensearch_index_size
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,20 +105,46 @@ class KNNSearchService:
         """
         params = params or KNNSearchParams()
         
-        # 生成查詢向量
-        query_embedding = await self.embeddings.aembed_query(query_text)
+        # 記錄開始時間
+        start_time = time.time()
         
-        # 根據策略執行搜尋
-        if strategy == SearchStrategy.KNN_ONLY:
-            return await self._knn_only_search(query_embedding, params)
-        elif strategy == SearchStrategy.HYBRID:
-            return await self._hybrid_search(query_text, query_embedding, params)
-        elif strategy == SearchStrategy.MULTI_VECTOR:
-            return await self._multi_vector_search(query_text, params)
-        elif strategy == SearchStrategy.RERANK:
-            return await self._rerank_search(query_text, query_embedding, params)
-        else:
-            raise ValueError(f"不支援的搜尋策略: {strategy}")
+        # 增加搜尋計數
+        vector_search_counter.labels(
+            strategy=strategy.value,
+            index=self.index_name
+        ).inc()
+        
+        try:
+            # 生成查詢向量
+            query_embedding = await self.embeddings.aembed_query(query_text)
+            
+            # 根據策略執行搜尋
+            if strategy == SearchStrategy.KNN_ONLY:
+                results = await self._knn_only_search(query_embedding, params)
+            elif strategy == SearchStrategy.HYBRID:
+                results = await self._hybrid_search(query_text, query_embedding, params)
+            elif strategy == SearchStrategy.MULTI_VECTOR:
+                results = await self._multi_vector_search(query_text, params)
+            elif strategy == SearchStrategy.RERANK:
+                results = await self._rerank_search(query_text, query_embedding, params)
+            else:
+                raise ValueError(f"不支援的搜尋策略: {strategy}")
+            
+            # 記錄結果數量
+            vector_search_results.labels(
+                strategy=strategy.value,
+                index=self.index_name
+            ).observe(len(results))
+            
+            return results
+            
+        finally:
+            # 記錄執行時間
+            duration = time.time() - start_time
+            vector_search_latency.labels(
+                strategy=strategy.value,
+                index=self.index_name
+            ).observe(duration)
     
     async def _knn_only_search(self, 
                               query_embedding: List[float],

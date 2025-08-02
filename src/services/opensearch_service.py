@@ -6,6 +6,13 @@ from src.services.knn_search_service import KNNSearchService, KNNSearchParams, S
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import json
 import logging
+import asyncio
+from src.services.prometheus_service import (
+    opensearch_cluster_health,
+    opensearch_index_docs,
+    opensearch_index_size,
+    ef_search_value
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,3 +172,41 @@ class OpenSearchService:
         """刪除索引（用於測試）"""
         if self.client.indices.exists(index=self.index_name):
             self.client.indices.delete(index=self.index_name)
+    
+    async def update_metrics(self):
+        """更新 Prometheus 指標"""
+        try:
+            # 獲取叢集健康狀態
+            health = self.client.cluster.health()
+            health_value = {"green": 2, "yellow": 1, "red": 0}.get(health["status"], 0)
+            opensearch_cluster_health.labels(cluster="opensearch").set(health_value)
+            
+            # 獲取索引統計
+            if self.client.indices.exists(index=self.index_name):
+                stats = self.client.indices.stats(index=self.index_name)
+                
+                # 文檔數量
+                doc_count = stats["indices"][self.index_name]["primaries"]["docs"]["count"]
+                opensearch_index_docs.labels(index=self.index_name).set(doc_count)
+                
+                # 索引大小
+                index_size = stats["indices"][self.index_name]["primaries"]["store"]["size_in_bytes"]
+                opensearch_index_size.labels(index=self.index_name).set(index_size)
+                
+                # 獲取當前 ef_search 值
+                settings = self.client.indices.get_settings(index=self.index_name)
+                ef_search = settings[self.index_name]["settings"]["index"].get("knn.algo_param.ef_search", 100)
+                ef_search_value.labels(index=self.index_name).set(int(ef_search))
+                
+        except Exception as e:
+            logger.error(f"更新 Prometheus 指標失敗: {e}")
+    
+    async def start_metrics_collection(self, interval: int = 30):
+        """開始定期收集指標
+        
+        Args:
+            interval: 收集間隔（秒）
+        """
+        while True:
+            await self.update_metrics()
+            await asyncio.sleep(interval)

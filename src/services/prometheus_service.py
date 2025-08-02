@@ -3,6 +3,65 @@ from typing import Dict, Any, List
 from datetime import datetime, timedelta
 from src.config import settings
 import json
+import time
+from prometheus_client import Counter, Histogram, Gauge, Summary
+
+# 定義向量檢索相關的 Prometheus 指標
+vector_search_counter = Counter(
+    'vector_search_total',
+    'Total number of vector searches',
+    ['strategy', 'index']
+)
+
+vector_search_latency = Histogram(
+    'vector_search_duration_seconds',
+    'Vector search duration in seconds',
+    ['strategy', 'index'],
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
+)
+
+vector_search_results = Histogram(
+    'vector_search_results_count',
+    'Number of results returned by vector search',
+    ['strategy', 'index'],
+    buckets=(0, 1, 5, 10, 20, 50, 100, 200)
+)
+
+opensearch_cluster_health = Gauge(
+    'opensearch_cluster_health',
+    'OpenSearch cluster health status (0=red, 1=yellow, 2=green)',
+    ['cluster']
+)
+
+opensearch_index_docs = Gauge(
+    'opensearch_index_document_count',
+    'Number of documents in OpenSearch index',
+    ['index']
+)
+
+opensearch_index_size = Gauge(
+    'opensearch_index_size_bytes',
+    'Size of OpenSearch index in bytes',
+    ['index']
+)
+
+ef_search_value = Gauge(
+    'opensearch_ef_search_value',
+    'Current ef_search parameter value',
+    ['index']
+)
+
+vector_search_recall = Summary(
+    'vector_search_recall',
+    'Vector search recall rate',
+    ['query_type']
+)
+
+vector_search_precision = Summary(
+    'vector_search_precision',
+    'Vector search precision rate',
+    ['query_type']
+)
 
 class PrometheusService:
     def __init__(self):
@@ -110,3 +169,90 @@ class PrometheusService:
             metrics["磁碟寫入速率"] = f"{total_write_mbps:.1f} MB/s"
         
         return metrics
+    
+    async def get_opensearch_metrics(self, cluster_name: str = "opensearch") -> Dict[str, Any]:
+        """獲取 OpenSearch 叢集的各項指標"""
+        metrics = {}
+        
+        # OpenSearch JVM Heap 使用率
+        jvm_heap_query = f'opensearch_jvm_memory_heap_used_percent{{cluster="{cluster_name}"}}'
+        jvm_data = await self.query(jvm_heap_query)
+        if jvm_data["result"]:
+            metrics["JVM Heap使用率"] = f"{float(jvm_data['result'][0]['value'][1]):.1f}%"
+        
+        # OpenSearch CPU 使用率
+        cpu_query = f'opensearch_os_cpu_percent{{cluster="{cluster_name}"}}'
+        cpu_data = await self.query(cpu_query)
+        if cpu_data["result"]:
+            metrics["OpenSearch CPU使用率"] = f"{float(cpu_data['result'][0]['value'][1]):.1f}%"
+        
+        # 索引查詢速率
+        query_rate = f'rate(opensearch_index_search_query_total{{cluster="{cluster_name}"}}[5m])'
+        query_data = await self.query(query_rate)
+        if query_data["result"]:
+            metrics["查詢速率"] = f"{float(query_data['result'][0]['value'][1]):.2f} QPS"
+        
+        # 索引延遲
+        latency_query = f'opensearch_index_search_query_time_seconds{{cluster="{cluster_name}"}}'
+        latency_data = await self.query(latency_query)
+        if latency_data["result"]:
+            metrics["平均查詢延遲"] = f"{float(latency_data['result'][0]['value'][1]) * 1000:.2f} ms"
+        
+        # 向量檢索指標
+        vector_latency_query = 'histogram_quantile(0.95, vector_search_duration_seconds_bucket)'
+        vector_data = await self.query(vector_latency_query)
+        if vector_data["result"]:
+            metrics["向量檢索P95延遲"] = f"{float(vector_data['result'][0]['value'][1]) * 1000:.2f} ms"
+        
+        # ef_search 當前值
+        ef_query = 'opensearch_ef_search_value'
+        ef_data = await self.query(ef_query)
+        if ef_data["result"]:
+            metrics["ef_search參數"] = int(float(ef_data['result'][0]['value'][1]))
+        
+        return metrics
+    
+    async def get_vector_search_stats(self, time_range: str = "5m") -> Dict[str, Any]:
+        """獲取向量檢索統計資訊"""
+        stats = {}
+        
+        # 總查詢數
+        total_query = f'sum(increase(vector_search_total[{time_range}]))'
+        total_data = await self.query(total_query)
+        if total_data["result"]:
+            stats["總查詢數"] = int(float(total_data['result'][0]['value'][1]))
+        
+        # 按策略分組的查詢數
+        strategy_query = f'sum by (strategy) (increase(vector_search_total[{time_range}]))'
+        strategy_data = await self.query(strategy_query)
+        if strategy_data["result"]:
+            stats["策略分布"] = {
+                r['metric']['strategy']: int(float(r['value'][1]))
+                for r in strategy_data['result']
+            }
+        
+        # 延遲百分位數
+        for percentile in [50, 95, 99]:
+            latency_query = f'histogram_quantile({percentile/100}, sum(rate(vector_search_duration_seconds_bucket[{time_range}])) by (le))'
+            latency_data = await self.query(latency_query)
+            if latency_data["result"]:
+                stats[f"P{percentile}延遲"] = f"{float(latency_data['result'][0]['value'][1]) * 1000:.2f} ms"
+        
+        # 平均返回結果數
+        results_query = f'avg(vector_search_results_count)'
+        results_data = await self.query(results_query)
+        if results_data["result"]:
+            stats["平均返回結果數"] = f"{float(results_data['result'][0]['value'][1]):.1f}"
+        
+        # 召回率和準確率
+        recall_query = 'avg(vector_search_recall)'
+        recall_data = await self.query(recall_query)
+        if recall_data["result"]:
+            stats["平均召回率"] = f"{float(recall_data['result'][0]['value'][1]) * 100:.2f}%"
+        
+        precision_query = 'avg(vector_search_precision)'
+        precision_data = await self.query(precision_query)
+        if precision_data["result"]:
+            stats["平均準確率"] = f"{float(precision_data['result'][0]['value'][1]) * 100:.2f}%"
+        
+        return stats
