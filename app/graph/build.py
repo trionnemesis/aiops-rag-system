@@ -3,7 +3,7 @@ from typing import Dict, Any, Callable, Optional, List
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from .state import RAGState
-from .nodes import plan_node, retrieve_node, synthesize_node, validate_node
+from .nodes import extract_node, plan_node, retrieve_node, synthesize_node, validate_node
 
 # ---- 簡易 RRF（最小版）：只用排名融合，不看分數 ----
 def simple_rrf_fuse(runs: List[List], k: int = 8, c: int = 60):
@@ -46,6 +46,7 @@ def build_graph(
     *,
     llm,
     retriever,
+    extract_service=None,  # 新增 LangExtract 服務
     bm25_search_fn: Optional[Callable[[str, int], list]] = None,
     rrf_fuse_fn: Optional[Callable] = simple_rrf_fuse,
     build_context_fn: Callable = default_build_context,
@@ -54,10 +55,17 @@ def build_graph(
     """
     將既有 LCEL 組成 LangGraph。僅回傳 graph 與可執行的 app（含 checkpoint）。
     你可以把 llm/retriever/BM25 函式從現有程式注入進來。
+    
+    新增：
+    - extract_service: LangExtractService 實例，用於結構化資訊提取
     """
     policy = policy or {}
     graph = StateGraph(RAGState)
 
+    # 添加提取節點（如果有提供 extract_service）
+    if extract_service:
+        graph.add_node("extract", lambda s: extract_node(s, extract_service=extract_service, policy=policy))
+    
     graph.add_node("plan", lambda s: plan_node(s, llm=llm, policy=policy))
     graph.add_node("retrieve", lambda s: retrieve_node(
         s, retriever=retriever, bm25_search_fn=bm25_search_fn,
@@ -68,7 +76,13 @@ def build_graph(
     ))
     graph.add_node("validate", lambda s: validate_node(s, policy=policy))
 
-    graph.add_edge(START, "plan")
+    # 設定流程
+    if extract_service:
+        graph.add_edge(START, "extract")
+        graph.add_edge("extract", "plan")
+    else:
+        graph.add_edge(START, "plan")
+    
     graph.add_edge("plan", "retrieve")
     graph.add_edge("retrieve", "synthesize")
     graph.add_edge("synthesize", "validate")
