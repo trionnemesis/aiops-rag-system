@@ -23,6 +23,7 @@
 | ⚡ **高效能** | 智慧快取機制 | 85% API 成本節省 |
 | 🛡️ **企業級** | 完整錯誤處理 | 85%+ 測試覆蓋率 |
 | 📊 **即時監控** | Prometheus + Grafana | 即時系統狀態 |
+| 🚀 **效能優化** | 向量檢索效能監控 | P95 < 200ms |
 
 ## 🚀 快速開始
 
@@ -89,6 +90,8 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
 | `/api/v1/metrics/{hostname}` | GET | 取得主機指標 |
 | `/api/v1/cache/info` | GET | 快取狀態資訊 |
 | `/api/v1/cache/clear` | POST | 清除快取 |
+| `/api/v1/search/vector` | POST | 向量搜尋 |
+| `/metrics` | GET | Prometheus 指標 |
 
 ## 🛠️ 開發指南
 
@@ -101,6 +104,12 @@ pip install -r requirements.txt
 # 執行測試
 pytest tests/ --cov=src --cov-fail-under=85
 
+# 執行效能測試
+pytest tests/test_vector_performance.py -v
+
+# 執行壓力測試
+pytest tests/test_vector_load.py -m load -v
+
 # 啟動開發伺服器
 uvicorn src.main:app --reload
 ```
@@ -111,6 +120,9 @@ uvicorn src.main:app --reload
 - **快取命中率**: 70%+  
 - **回應時間**: < 5秒 (P95)
 - **測試覆蓋率**: 85%+
+- **向量搜尋延遲**: < 200ms (P95)
+- **每秒查詢數 (QPS)**: 支援 100+ QPS
+- **失敗率**: < 1%
 
 ## 📖 完整文檔
 
@@ -123,6 +135,9 @@ uvicorn src.main:app --reload
 - [效能優化指南](./docs/development/optimization-guide.md) - RAG 系統優化
 - [系統優化說明](./docs/development/optimizations.md) - 優化實作細節
 - [優化總結](./docs/development/OPTIMIZATION_SUMMARY.md) - 優化成果總結
+
+### 🚀 效能優化
+- [向量檢索效能優化](./docs/vector-performance-optimization.md) - 向量搜尋效能監控與優化
 
 ### 🚀 部署指南
 - [Docker 部署](./docs/deployment/docker-guide.md) - 容器化部署完整指南

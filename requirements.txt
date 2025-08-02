@@ -24,3 +24,11 @@ tqdm>=4.66.0  # 進度條顯示
 colorama>=0.4.6  # 彩色輸出
 numpy>=1.24.0  # 向量計算
 
+# 效能測試相關
+locust>=2.17.0  # 壓力測試工具
+pandas>=2.0.0  # 數據分析
+psutil>=5.9.0  # 系統資源監控
+
+# 監控相關
+prometheus-client>=0.19.0  # Prometheus 指標收集
+

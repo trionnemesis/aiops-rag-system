@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from contextlib import asynccontextmanager
 import logging
+import asyncio
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from src.models.schemas import ReportRequest, ReportResponse, InsightReport
 from src.services.rag_service import RAGService
 from src.services.opensearch_service import OpenSearchService
@@ -27,12 +29,21 @@ async def lifespan(app: FastAPI):
         opensearch = OpenSearchService()
         await opensearch.create_index()
         logger.info("OpenSearch index initialized")
+        
+        # 啟動指標收集任務
+        app.state.metrics_task = asyncio.create_task(
+            opensearch.start_metrics_collection(interval=30)
+        )
+        logger.info("Started metrics collection")
+        
     except Exception as e:
         logger.error(f"Failed to initialize OpenSearch: {str(e)}")
         raise
     yield
     # Shutdown
     logger.info("Shutting down...")
+    if hasattr(app.state, "metrics_task"):
+        app.state.metrics_task.cancel()
 
 # Create FastAPI app
 app = FastAPI(
@@ -275,6 +286,65 @@ async def clear_cache():
     except Exception as e:
         logger.error(f"Unexpected error clearing cache: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to clear cache")
+
+@app.get("/metrics")
+async def get_metrics():
+    """
+    Prometheus 指標端點
+    
+    返回所有已註冊的 Prometheus 指標
+    """
+    try:
+        metrics_data = generate_latest()
+        return Response(content=metrics_data, media_type=CONTENT_TYPE_LATEST)
+    except Exception as e:
+        logger.error(f"Error generating metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to generate metrics")
+
+@app.post("/api/v1/search/vector")
+async def vector_search(
+    query: str,
+    k: int = 10,
+    strategy: str = "hybrid",
+    filter: dict = None
+):
+    """
+    向量搜尋端點
+    
+    Args:
+        query: 查詢文字
+        k: 返回結果數量
+        strategy: 搜尋策略 (knn_only, hybrid, multi_vector, rerank)
+        filter: 過濾條件
+    """
+    try:
+        from src.services.knn_search_service import SearchStrategy, KNNSearchParams
+        
+        opensearch_service = OpenSearchService()
+        
+        # 轉換策略字串為枚舉
+        search_strategy = SearchStrategy(strategy)
+        
+        # 執行搜尋
+        results = await opensearch_service.search_similar_documents(
+            query_text=query,
+            k=k,
+            strategy=search_strategy,
+            filter_dict=filter
+        )
+        
+        return {
+            "query": query,
+            "strategy": strategy,
+            "results": results,
+            "count": len(results)
+        }
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid strategy: {str(e)}")
+    except Exception as e:
+        logger.error(f"Vector search error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Vector search failed")
 
 if __name__ == "__main__":
     import uvicorn
