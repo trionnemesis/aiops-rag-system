@@ -10,6 +10,7 @@ from langchain_core.language_models import BaseLanguageModel
 # rrf_fuse_fn: Optional[callable] -> (runs: List[List[Document]], k: int) -> List[Document]
 # build_context_fn: (docs: List[Document], max_chars: int) -> str
 # policy: dict（成本護欄、是否啟用 HyDE/RRF、top_k、timeouts ...）
+# extract_service: LangExtractService 實例
 
 def _unique_by_id(docs: List[Document], key: str = "id") -> List[Document]:
     seen = set()
@@ -21,6 +22,34 @@ def _unique_by_id(docs: List[Document], key: str = "id") -> List[Document]:
         seen.add(doc_id)
         out.append(d)
     return out
+
+def extract_node(state, extract_service=None, policy: Dict[str, Any] = None, **kwargs):
+    """提取結構化資訊節點：從原始文本中提取 AIOps 實體"""
+    policy = policy or {}
+    use_llm_extract = policy.get("use_llm_extract", True)
+    
+    # 如果沒有原始文本，跳過提取
+    raw_texts = state.get("raw_texts", [])
+    if not raw_texts or not extract_service:
+        state["extracted_data"] = []
+        return state
+    
+    # 批量提取
+    extracted_results = extract_service.batch_extract(raw_texts, use_llm=use_llm_extract)
+    
+    # 轉換為元數據格式
+    extracted_data = []
+    for result in extracted_results:
+        metadata = extract_service.extract_to_metadata(result.raw_text, use_llm=False)
+        # 附加原始提取結果供後續使用
+        metadata['_raw_extracted'] = result.entities.dict()
+        metadata['_extraction_confidence'] = result.confidence
+        extracted_data.append(metadata)
+    
+    state["extracted_data"] = extracted_data
+    state.setdefault("metrics", {})["extracted_count"] = len(extracted_data)
+    
+    return state
 
 def plan_node(state, llm: BaseLanguageModel, policy: Dict[str, Any], **kwargs):
     """決策 fast/deep 與產生 queries（可含 HyDE、多查詢）"""
@@ -68,14 +97,41 @@ def retrieve_node(state,
     policy = policy or {}
     top_k = policy.get("top_k", 8)
     enable_rrf = policy.get("use_rrf", False) and bm25_search_fn is not None and rrf_fuse_fn is not None
+    enable_metadata_filter = policy.get("use_metadata_filter", True)
 
     queries: List[str] = state["queries"]
+    extracted_data = state.get("extracted_data", [])
     runs = []
+
+    # 如果有提取的元數據，構建過濾條件
+    metadata_filters = {}
+    if enable_metadata_filter and extracted_data:
+        # 從提取的資料中收集關鍵過濾條件
+        for data in extracted_data:
+            raw_extracted = data.get("_raw_extracted", {})
+            # 優先過濾高信心度的提取結果
+            if data.get("_extraction_confidence", 0) > 0.7:
+                if raw_extracted.get("hostname"):
+                    metadata_filters["extracted_hostname"] = raw_extracted["hostname"]
+                if raw_extracted.get("service_name"):
+                    metadata_filters["extracted_service_name"] = raw_extracted["service_name"]
+                if raw_extracted.get("error_code"):
+                    metadata_filters["extracted_error_code"] = raw_extracted["error_code"]
 
     # 向量檢索（對每個 query 各取 top_k，再合併去重）
     vec_docs_all = []
     for q in queries:
-        docs = retriever.get_relevant_documents(q)
+        # 如果 retriever 支援元數據過濾，則應用過濾
+        if hasattr(retriever, "search_kwargs") and metadata_filters:
+            # 暫存原始設定
+            original_kwargs = retriever.search_kwargs.copy()
+            # 添加過濾條件
+            retriever.search_kwargs["filter"] = metadata_filters
+            docs = retriever.get_relevant_documents(q)
+            # 還原設定
+            retriever.search_kwargs = original_kwargs
+        else:
+            docs = retriever.get_relevant_documents(q)
         vec_docs_all.extend(docs[:top_k])
     vec_docs_all = _unique_by_id(vec_docs_all)
 
@@ -92,6 +148,7 @@ def retrieve_node(state,
     m = state.setdefault("metrics", {})
     m["docs"] = len(docs_final)
     m["rrf_on"] = enable_rrf
+    m["metadata_filters"] = metadata_filters
     return state
 
 def synthesize_node(state,
@@ -107,16 +164,42 @@ def synthesize_node(state,
 
     docs = state.get("docs", [])
     q = state["query"]
+    extracted_data = state.get("extracted_data", [])
 
     try:
         context = build_context_fn(docs, max_chars=max_ctx)
         state["context"] = context
+        
+        # 準備結構化資料摘要
+        structured_summary = ""
+        if extracted_data:
+            # 收集高信心度的關鍵資訊
+            key_info = []
+            for data in extracted_data:
+                if data.get("_extraction_confidence", 0) > 0.7:
+                    raw = data.get("_raw_extracted", {})
+                    if raw.get("hostname"):
+                        key_info.append(f"主機: {raw['hostname']}")
+                    if raw.get("service_name"):
+                        key_info.append(f"服務: {raw['service_name']}")
+                    if raw.get("error_code"):
+                        key_info.append(f"錯誤碼: {raw['error_code']}")
+                    if raw.get("cpu_usage") is not None:
+                        key_info.append(f"CPU使用率: {raw['cpu_usage']}%")
+                    if raw.get("memory_usage") is not None:
+                        key_info.append(f"記憶體使用率: {raw['memory_usage']}%")
+            
+            if key_info:
+                structured_summary = "\n【提取的關鍵資訊】\n" + "\n".join(f"• {info}" for info in key_info[:10])
 
         prompt = (
-            "你是 AIOps 報告助理，請根據【資料來源】回答使用者問題。\n"
+            "你是 AIOps 報告助理，請根據【資料來源】和【提取的關鍵資訊】回答使用者問題。\n"
             "要求：\n"
-            "1) 僅引用資料來源可得的內容；2) 給出條列、結構化回答；3) 標註來源標題或ID。\n\n"
-            f"【問題】\n{q}\n\n【資料來源】\n{context}\n\n【回答】"
+            "1) 優先使用提取的結構化資訊\n"
+            "2) 結合資料來源提供深入分析\n"
+            "3) 給出條列、結構化回答\n"
+            "4) 標註來源標題或ID\n\n"
+            f"【問題】\n{q}\n{structured_summary}\n\n【資料來源】\n{context}\n\n【回答】"
         )
         result = llm.invoke(prompt)
         answer = getattr(result, "content", str(result)).strip()
