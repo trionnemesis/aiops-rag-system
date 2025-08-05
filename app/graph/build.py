@@ -2,6 +2,9 @@ from __future__ import annotations
 from typing import Dict, Any, Callable, Optional, List
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+import os
+import redis
+from langgraph.checkpoint.redis import RedisSaver
 from .state import RAGState
 from .nodes import extract_node, plan_node, retrieve_node, synthesize_node, validate_node, error_handler_node
 
@@ -132,6 +135,22 @@ def build_graph(
     graph.add_edge("validate", END)
     graph.add_edge("error_handler", END)
 
-    memory = MemorySaver()
-    app = graph.compile(checkpointer=memory)
+    # 根據環境變數決定使用 Redis 或記憶體 checkpoint
+    redis_url = os.getenv("REDIS_URL")
+    if redis_url:
+        try:
+            # 建立 Redis 連接
+            redis_client = redis.from_url(redis_url)
+            # 測試連接
+            redis_client.ping()
+            checkpointer = RedisSaver(redis_client)
+            print(f"Using Redis checkpoint at {redis_url}")
+        except Exception as e:
+            print(f"Failed to connect to Redis: {e}, falling back to MemorySaver")
+            checkpointer = MemorySaver()
+    else:
+        checkpointer = MemorySaver()
+        print("Using in-memory checkpoint")
+    
+    app = graph.compile(checkpointer=checkpointer)
     return app
