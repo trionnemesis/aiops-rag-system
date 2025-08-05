@@ -79,8 +79,13 @@ def rag_report(req: RAGRequest) -> Dict[str, Any]:
         try:
             logger.info("Processing RAG request", query=req.query[:100], request_id=request_id)
             
-            # run_id 便於追蹤
-            cfg = {"configurable": {"run_id": request_id}}
+            # run_id 便於追蹤，thread_id 用於狀態持久化
+            cfg = {
+                "configurable": {
+                    "run_id": request_id,
+                    "thread_id": f"thread-{request_id}"  # 使用 request_id 作為 thread_id
+                }
+            }
             
             # 將 request_id 加入狀態，讓節點可以使用
             initial_state = {

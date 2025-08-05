@@ -35,6 +35,9 @@ prometheus-client  # Prometheus 指標收集
 # 重試機制
 tenacity  # 重試機制與指數退避
 
+# 狀態持久化
+redis  # Redis 客戶端，用於 LangGraph checkpoint
+
 # 結構化日誌
 loguru  # 結構化日誌框架，替代 print()
 
