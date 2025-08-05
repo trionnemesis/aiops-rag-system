@@ -1,48 +1,47 @@
 # LangGraph 核心相依
-langgraph>=0.0.20
-langchain-core>=0.1.0
-langchain-community>=0.0.10
+langgraph
+langchain-core
+langchain-community
 
 # OpenSearch
-opensearch-py>=2.3.0
+opensearch-py
 
 # FastAPI
-fastapi>=0.104.0
-uvicorn>=0.24.0
-pydantic>=2.4.0
+fastapi
+uvicorn
+pydantic
 
 # LLM Providers (選擇你需要的)
-langchain-openai>=0.0.5  # for OpenAI
-langchain-google-genai>=0.0.5  # for Google Gemini
+langchain-openai  # for OpenAI
+langchain-google-genai  # for Google Gemini
 
 # 其他可能需要的
-python-dotenv>=1.0.0  # 環境變數管理
-httpx>=0.25.0  # async HTTP client
+python-dotenv  # 環境變數管理
+httpx  # async HTTP client
 
 # KNN 向量搜尋相關
-tqdm>=4.66.0  # 進度條顯示
-colorama>=0.4.6  # 彩色輸出
-numpy>=1.24.0  # 向量計算
+tqdm  # 進度條顯示
+colorama  # 彩色輸出
+numpy  # 向量計算
 
 # 效能測試相關
-locust>=2.17.0  # 壓力測試工具
-pandas>=2.0.0  # 數據分析
-psutil>=5.9.0  # 系統資源監控
+locust  # 壓力測試工具
+pandas  # 數據分析
+psutil  # 系統資源監控
 
 # 監控相關
-prometheus-client>=0.19.0  # Prometheus 指標收集
+prometheus-client  # Prometheus 指標收集
 
 # 重試機制
-tenacity>=8.2.0  # 重試機制與指數退避
+tenacity  # 重試機制與指數退避
 
 # 結構化日誌
-loguru>=0.7.0  # 結構化日誌框架，替代 print()
+loguru  # 結構化日誌框架，替代 print()
 
 # 分散式追蹤
-opentelemetry-api>=1.22.0  # OpenTelemetry API
-opentelemetry-sdk>=1.22.0  # OpenTelemetry SDK
-opentelemetry-instrumentation-fastapi>=0.43b0  # FastAPI 自動追蹤
-opentelemetry-instrumentation-httpx>=0.43b0  # HTTP 客戶端追蹤
-opentelemetry-exporter-jaeger>=1.22.0  # Jaeger 追蹤導出器
-opentelemetry-exporter-otlp>=1.22.0  # OTLP 通用導出器
-
+opentelemetry-api  # OpenTelemetry API
+opentelemetry-sdk  # OpenTelemetry SDK
+opentelemetry-instrumentation-fastapi  # FastAPI 自動追蹤
+opentelemetry-instrumentation-httpx  # HTTP 客戶端追蹤
+opentelemetry-exporter-jaeger  # Jaeger 追蹤導出器
+opentelemetry-exporter-otlp  # OTLP 通用導出器
