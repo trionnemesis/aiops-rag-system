@@ -13,6 +13,8 @@
 - **KNN 向量搜尋**: HNSW 演算法實作，支援多種搜尋策略
 - **LangExtract**: 結構化資訊提取，智慧元數據管理
 - **完整可觀測性**: 結構化日誌、分散式追蹤、度量指標收集
+- **狀態持久化**: LangGraph 工作流程狀態管理與恢復
+- **重試機制**: 智慧重試與錯誤處理策略
 
 ## ⚡ 核心優勢
 
@@ -28,6 +30,8 @@
 | 📊 **即時監控** | Prometheus + Grafana | 即時系統狀態 |
 | 🚀 **效能優化** | 向量檢索效能監控 | P95 < 200ms |
 | 🔍 **可觀測性** | 結構化日誌 + 分散式追蹤 | 完整請求鏈路追蹤 |
+| 💾 **狀態管理** | 工作流程狀態持久化 | 支援中斷恢復 |
+| 🔄 **容錯機制** | 智慧重試策略 | 提升系統可靠性 |
 
 ## 🚀 快速開始
 
@@ -35,7 +39,7 @@
 
 ```bash
 # Clone 專案
-git clone https://github.com/your-username/aiops-rag-system.git
+git clone https://github.com/[your-org]/aiops-rag-system.git
 cd aiops-rag-system
 
 # 設定環境變數
@@ -62,6 +66,7 @@ curl -X POST http://localhost:8080/api/v1/rag/report \
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
 - **Jaeger UI**: http://localhost:16686
+- **OpenSearch Dashboards**: http://localhost:5601
 - **Metrics**: http://localhost:8000/metrics
 
 ## 🏗️ 系統架構
@@ -89,6 +94,12 @@ curl -X POST http://localhost:8080/api/v1/rag/report \
 │ Structured  │     │  Tracing     │     │   Traces    │
 │    Logs     │     └──────────────┘     └─────────────┘
 └─────────────┘                                  
+       │                                         
+       ▼                                        
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│ LangExtract │     │    Redis     │     │  State DB   │
+│  Metadata   │     │    Cache     │     │ Persistence │
+└─────────────┘     └──────────────┘     └─────────────┘
 ```
 
 ## 🔍 可觀測性功能
@@ -113,6 +124,7 @@ curl -X POST http://localhost:8080/api/v1/rag/report \
 | 端點 | 方法 | 說明 |
 |------|------|------|
 | `/api/v1/rag/report` | POST | 生成 RAG 報告 |
+| `/api/v1/rag/extract` | POST | 結構化資訊提取 |
 | `/api/v1/health` | GET | 健康檢查 |
 | `/api/v1/metrics` | GET | Prometheus 指標 |
 | `/docs` | GET | Swagger API 文檔 |
@@ -153,6 +165,14 @@ TRACE_CONSOLE=false
 
 # 指標配置
 METRICS_PORT=8000
+
+# 快取配置
+REDIS_URL=redis://localhost:6379
+CACHE_TTL=3600
+
+# 狀態持久化
+STATE_DB_PATH=/data/state.db
+ENABLE_STATE_PERSISTENCE=true
 ```
 
 ## 📊 效能指標
@@ -165,8 +185,12 @@ METRICS_PORT=8000
 - **每秒查詢數 (QPS)**: 支援 100+ QPS
 - **失敗率**: < 1%
 - **追蹤覆蓋率**: 100% 關鍵路徑
+- **系統可用性**: 99.9%+
 
 ## 📖 完整文檔
+
+### 🚀 快速開始
+- [快速開始指南](./docs/quick-start.md) - 5分鐘內啟動系統
 
 ### 🏗️ 系統架構
 - [系統設計](./docs/architecture/system-design.md) - 整體架構和核心組件
@@ -175,6 +199,8 @@ METRICS_PORT=8000
 ### 💻 開發指南
 - [本地環境設置](./docs/development/local-setup.md) - 開發環境配置
 - [錯誤處理最佳實踐](./docs/development/error-handling.md) - 錯誤處理機制
+- [重試與錯誤處理](./docs/retry_and_error_handling.md) - 重試機制和錯誤處理策略
+- [狀態持久化指南](./docs/state_persistence_guide.md) - LangGraph 狀態管理與持久化
 - [效能優化指南](./docs/development/optimization-guide.md) - RAG 系統優化
 - [系統優化說明](./docs/development/optimizations.md) - 優化實作細節
 - [優化總結](./docs/development/OPTIMIZATION_SUMMARY.md) - 優化成果總結
@@ -198,6 +224,10 @@ METRICS_PORT=8000
 ### 📚 文檔索引
 - [文檔目錄](./docs/README.md) - 完整文檔導航和說明
 
+### 📝 其他資源
+- [更新日誌](./CHANGELOG.md) - 版本更新和功能變更記錄
+- [環境設定範例](./.env.example) - 環境變數配置模板
+
 ## 🤝 貢獻
 
 歡迎提交 Issue 和 PR！請確保：
@@ -213,3 +243,5 @@ MIT License - 詳見 [LICENSE](LICENSE)
 ---
 
 ⭐ 覺得有幫助嗎？給個星星吧！
+
+📊 **最後更新**: 2024年1月
