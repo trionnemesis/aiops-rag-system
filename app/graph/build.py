@@ -3,7 +3,7 @@ from typing import Dict, Any, Callable, Optional, List
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from .state import RAGState
-from .nodes import extract_node, plan_node, retrieve_node, synthesize_node, validate_node
+from .nodes import extract_node, plan_node, retrieve_node, synthesize_node, validate_node, error_handler_node
 
 # ---- 簡易 RRF（最小版）：只用排名融合，不看分數 ----
 def simple_rrf_fuse(runs: List[List], k: int = 8, c: int = 60):
@@ -75,18 +75,62 @@ def build_graph(
         s, llm=llm, build_context_fn=build_context_fn, policy=policy
     ))
     graph.add_node("validate", lambda s: validate_node(s, policy=policy))
+    graph.add_node("error_handler", lambda s: error_handler_node(s, policy=policy))
 
+    # 定義條件函數來檢查是否有錯誤
+    def check_error(state):
+        """檢查狀態中是否有錯誤"""
+        if state.get("error"):
+            return "error_handler"
+        return "continue"
+    
     # 設定流程
     if extract_service:
         graph.add_edge(START, "extract")
-        graph.add_edge("extract", "plan")
+        # extract 可能失敗，添加條件邊
+        graph.add_conditional_edges(
+            "extract",
+            check_error,
+            {
+                "continue": "plan",
+                "error_handler": "error_handler"
+            }
+        )
     else:
         graph.add_edge(START, "plan")
     
-    graph.add_edge("plan", "retrieve")
-    graph.add_edge("retrieve", "synthesize")
-    graph.add_edge("synthesize", "validate")
+    # plan 可能失敗，添加條件邊
+    graph.add_conditional_edges(
+        "plan",
+        check_error,
+        {
+            "continue": "retrieve",
+            "error_handler": "error_handler"
+        }
+    )
+    
+    # retrieve 可能失敗，添加條件邊
+    graph.add_conditional_edges(
+        "retrieve",
+        check_error,
+        {
+            "continue": "synthesize",
+            "error_handler": "error_handler"
+        }
+    )
+    
+    # synthesize 已經有內建錯誤處理，但仍然添加條件邊以防其他錯誤
+    graph.add_conditional_edges(
+        "synthesize",
+        check_error,
+        {
+            "continue": "validate",
+            "error_handler": "error_handler"
+        }
+    )
+    
     graph.add_edge("validate", END)
+    graph.add_edge("error_handler", END)
 
     memory = MemorySaver()
     app = graph.compile(checkpointer=memory)
