@@ -8,6 +8,16 @@ from langchain_community.vectorstores import OpenSearchVectorSearch
 from langchain_core.documents import Document
 
 from app.graph.build import build_graph
+from app.observability import (
+    get_logger, 
+    set_request_context, 
+    clear_request_context,
+    track_request_metrics,
+    tracer
+)
+
+# 使用結構化日誌
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -47,26 +57,91 @@ class RAGRequest(BaseModel):
     # 保留你原本需要的欄位，這裡只展示最小必要
 
 @router.post("/rag/report")
+@track_request_metrics("/rag/report", method="POST")
 def rag_report(req: RAGRequest) -> Dict[str, Any]:
     """維持原路由與回傳結構；內部切到 LangGraph 執行"""
-    start = time.time()
-    try:
-        # run_id 便於追蹤
-        cfg = {"configurable": {"run_id": str(uuid.uuid4())}}
-        result = graph_app.invoke({"query": req.query}, config=cfg)
-        latency = int((time.time() - start) * 1000)
-
-        # 你原本的回傳格式若不同，請在這裡轉換；以下是常見結構
-        return {
-            "ok": True,
-            "data": {
-                "answer": result.get("answer", ""),
-                "metrics": {
-                    **result.get("metrics", {}),
-                    "latency_ms": latency,
-                },
-                "warnings": result.get("metrics", {}).get("warnings", []),
-            },
+    request_id = str(uuid.uuid4())
+    
+    # 設定請求上下文（用於結構化日誌）
+    set_request_context(request_id=request_id, endpoint="/rag/report")
+    
+    # 使用 OpenTelemetry 創建追蹤 span
+    with tracer.start_as_current_span(
+        "rag_report",
+        attributes={
+            "request.id": request_id,
+            "query.text": req.query[:100],
+            "query.length": len(req.query),
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"graph_error: {e}")
+    ) as span:
+        start = time.time()
+        
+        try:
+            logger.info("Processing RAG request", query=req.query[:100], request_id=request_id)
+            
+            # run_id 便於追蹤
+            cfg = {"configurable": {"run_id": request_id}}
+            
+            # 將 request_id 加入狀態，讓節點可以使用
+            initial_state = {
+                "query": req.query,
+                "request_id": request_id
+            }
+            
+            result = graph_app.invoke(initial_state, config=cfg)
+            latency = int((time.time() - start) * 1000)
+            
+            # 記錄成功
+            logger.info("RAG request completed successfully", 
+                       request_id=request_id, 
+                       latency_ms=latency,
+                       doc_count=len(result.get("docs", [])))
+            
+            # 添加追蹤屬性
+            span.set_attribute("response.latency_ms", latency)
+            span.set_attribute("response.doc_count", len(result.get("docs", [])))
+            span.set_attribute("response.answer_length", len(result.get("answer", "")))
+            
+            # 你原本的回傳格式若不同，請在這裡轉換；以下是常見結構
+            return {
+                "ok": True,
+                "data": {
+                    "answer": result.get("answer", ""),
+                    "metrics": {
+                        **result.get("metrics", {}),
+                        "latency_ms": latency,
+                        "request_id": request_id,
+                    },
+                    "warnings": result.get("metrics", {}).get("warnings", []),
+                },
+            }
+        except Exception as e:
+            # 記錄錯誤
+            logger.error("RAG request failed", 
+                        request_id=request_id,
+                        error=str(e),
+                        error_type=type(e).__name__)
+            
+            # 在追蹤中記錄錯誤
+            span.record_exception(e)
+            span.set_attribute("error", True)
+            
+            raise HTTPException(status_code=500, detail=f"graph_error: {e}")
+        finally:
+            # 清理請求上下文
+            clear_request_context()
+
+# 添加健康檢查端點
+@router.get("/health")
+def health_check():
+    """健康檢查端點"""
+    return {"status": "healthy", "service": "langgraph-rag"}
+
+# 添加 Prometheus 指標端點
+@router.get("/metrics")
+def get_metrics():
+    """暴露 Prometheus 指標"""
+    from app.observability.metrics import get_metrics as prometheus_metrics
+    from fastapi.responses import PlainTextResponse
+    
+    return PlainTextResponse(prometheus_metrics(), media_type="text/plain")

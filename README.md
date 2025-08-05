@@ -1,6 +1,6 @@
 # AIOps 智慧維運報告 RAG 系統
 
-> 基於 LangChain LCEL + LangGraph 的智慧維運報告生成系統
+> 基於 LangChain LCEL + LangGraph 的智慧維運報告生成系統，具備完整可觀測性
 
 ## 🎯 系統簡介
 
@@ -12,6 +12,7 @@
 - **HyDE + RAG-Fusion**: 多策略文檔檢索和內容生成
 - **KNN 向量搜尋**: HNSW 演算法實作，支援多種搜尋策略
 - **LangExtract**: 結構化資訊提取，智慧元數據管理
+- **完整可觀測性**: 結構化日誌、分散式追蹤、度量指標收集
 
 ## ⚡ 核心優勢
 
@@ -26,6 +27,7 @@
 | 🛡️ **企業級** | 完整錯誤處理 | 85%+ 測試覆蓋率 |
 | 📊 **即時監控** | Prometheus + Grafana | 即時系統狀態 |
 | 🚀 **效能優化** | 向量檢索效能監控 | P95 < 200ms |
+| 🔍 **可觀測性** | 結構化日誌 + 分散式追蹤 | 完整請求鏈路追蹤 |
 
 ## 🚀 快速開始
 
@@ -38,7 +40,7 @@ cd aiops-rag-system
 
 # 設定環境變數
 cp .env.example .env
-# 編輯 .env，填入 Gemini API Key
+# 編輯 .env，填入 Gemini API Key 和可觀測性配置
 
 # 啟動服務
 docker-compose up -d
@@ -47,22 +49,20 @@ docker-compose up -d
 ### 2. 測試 API
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/generate_report \
+curl -X POST http://localhost:8080/api/v1/rag/report \
   -H "Content-Type: application/json" \
   -d '{
-    "monitoring_data": {
-      "主機": "web-prod-03",
-      "CPU使用率": "75%",
-      "RAM使用率": "95%"
-    }
+    "query": "如何解決 Kubernetes Pod OOMKilled 問題"
   }'
 ```
 
 ### 3. 存取服務
 
-- **API 文檔**: http://localhost:8000/docs
+- **API 文檔**: http://localhost:8080/docs
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
+- **Jaeger UI**: http://localhost:16686
+- **Metrics**: http://localhost:8000/metrics
 
 ## 🏗️ 系統架構
 
@@ -82,18 +82,40 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
 │ Prometheus  │     │  OpenSearch  │     │   Grafana   │
 │  Metrics    │     │ KNN + HNSW   │     │ Dashboard   │
 └─────────────┘     └──────────────┘     └─────────────┘
+       │                    │                    │
+       ▼                    ▼                    ▼
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   Loguru    │     │OpenTelemetry │     │   Jaeger    │
+│ Structured  │     │  Tracing     │     │   Traces    │
+│    Logs     │     └──────────────┘     └─────────────┘
+└─────────────┘                                  
 ```
+
+## 🔍 可觀測性功能
+
+### 結構化日誌
+- **JSON 格式**：支援 Loki、Splunk、Elasticsearch
+- **請求追蹤**：自動包含 request_id、node_name
+- **上下文資訊**：執行時間、錯誤詳情、節點狀態
+
+### 分散式追蹤
+- **完整鏈路**：視覺化 LangGraph DAG 執行流程
+- **節點耗時**：每個節點的詳細執行時間
+- **錯誤定位**：快速找出失敗節點和原因
+
+### 度量指標
+- **系統健康**：QPS、延遲、錯誤率
+- **資源使用**：Token 使用量、檢索文件數
+- **業務指標**：答案品質分數、驗證結果
 
 ## 📚 API 端點
 
 | 端點 | 方法 | 說明 |
 |------|------|------|
-| `/api/v1/generate_report` | POST | 生成維運報告 |
-| `/api/v1/metrics/{hostname}` | GET | 取得主機指標 |
-| `/api/v1/cache/info` | GET | 快取狀態資訊 |
-| `/api/v1/cache/clear` | POST | 清除快取 |
-| `/api/v1/search/vector` | POST | 向量搜尋 |
-| `/metrics` | GET | Prometheus 指標 |
+| `/api/v1/rag/report` | POST | 生成 RAG 報告 |
+| `/api/v1/health` | GET | 健康檢查 |
+| `/api/v1/metrics` | GET | Prometheus 指標 |
+| `/docs` | GET | Swagger API 文檔 |
 
 ## 🛠️ 開發指南
 
@@ -104,16 +126,33 @@ curl -X POST http://localhost:8000/api/v1/generate_report \
 pip install -r requirements.txt
 
 # 執行測試
-pytest tests/ --cov=src --cov-fail-under=85
-
-# 執行效能測試
-pytest tests/test_vector_performance.py -v
-
-# 執行壓力測試
-pytest tests/test_vector_load.py -m load -v
+pytest tests/ --cov=app --cov-fail-under=85
 
 # 啟動開發伺服器
-uvicorn src.main:app --reload
+python -m app.main
+
+# 檢視日誌（開發模式）
+LOG_LEVEL=DEBUG JSON_LOGS=false python -m app.main
+```
+
+### 環境變數配置
+
+```bash
+# LLM 配置
+GEMINI_API_KEY=your-api-key
+
+# 日誌配置
+LOG_LEVEL=INFO
+JSON_LOGS=true
+LOG_FILE=/var/log/rag/app.log
+
+# 追蹤配置
+JAEGER_ENDPOINT=localhost:6831
+OTLP_ENDPOINT=localhost:4317
+TRACE_CONSOLE=false
+
+# 指標配置
+METRICS_PORT=8000
 ```
 
 ## 📊 效能指標
@@ -125,11 +164,13 @@ uvicorn src.main:app --reload
 - **向量搜尋延遲**: < 200ms (P95)
 - **每秒查詢數 (QPS)**: 支援 100+ QPS
 - **失敗率**: < 1%
+- **追蹤覆蓋率**: 100% 關鍵路徑
 
 ## 📖 完整文檔
 
 ### 🏗️ 系統架構
 - [系統設計](./docs/architecture/system-design.md) - 整體架構和核心組件
+- [可觀測性指南](./docs/observability.md) - 結構化日誌、追蹤、指標詳細說明
 
 ### 💻 開發指南
 - [本地環境設置](./docs/development/local-setup.md) - 開發環境配置
@@ -163,6 +204,7 @@ uvicorn src.main:app --reload
 - 遵循程式碼規範
 - 維持測試覆蓋率 85%+
 - 更新相關文件
+- 包含適當的日誌和追蹤
 
 ## 📝 授權
 

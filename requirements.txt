@@ -35,3 +35,14 @@ prometheus-client>=0.19.0  # Prometheus 指標收集
 # 重試機制
 tenacity>=8.2.0  # 重試機制與指數退避
 
+# 結構化日誌
+loguru>=0.7.0  # 結構化日誌框架，替代 print()
+
+# 分散式追蹤
+opentelemetry-api>=1.22.0  # OpenTelemetry API
+opentelemetry-sdk>=1.22.0  # OpenTelemetry SDK
+opentelemetry-instrumentation-fastapi>=0.43b0  # FastAPI 自動追蹤
+opentelemetry-instrumentation-httpx>=0.43b0  # HTTP 客戶端追蹤
+opentelemetry-exporter-jaeger>=1.22.0  # Jaeger 追蹤導出器
+opentelemetry-exporter-otlp>=1.22.0  # OTLP 通用導出器
+

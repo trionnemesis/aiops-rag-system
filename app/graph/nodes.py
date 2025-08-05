@@ -3,9 +3,12 @@ from typing import List, Dict, Any, Optional
 from langchain_core.documents import Document
 from langchain_core.language_models import BaseLanguageModel
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-import logging
 
-logger = logging.getLogger(__name__)
+# 導入我們的可觀測性模塊
+from app.observability import get_logger, trace_node, track_node_metrics
+
+# 使用結構化日誌
+logger = get_logger(__name__)
 
 # ==== 可插拔的相依，由外部注入 ====
 # llm: BaseLanguageModel
@@ -27,8 +30,12 @@ def _unique_by_id(docs: List[Document], key: str = "id") -> List[Document]:
         out.append(d)
     return out
 
+@trace_node("extract")
+@track_node_metrics("extract")
 def extract_node(state, extract_service=None, policy: Dict[str, Any] = None, **kwargs):
     """提取結構化資訊節點：從原始文本中提取 AIOps 實體"""
+    logger.info("Starting extract node", query=state.get("query", ""))
+    
     policy = policy or {}
     use_llm_extract = policy.get("use_llm_extract", True)
     
@@ -44,7 +51,9 @@ def extract_node(state, extract_service=None, policy: Dict[str, Any] = None, **k
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type((ConnectionError, TimeoutError)),
         before_sleep=lambda retry_state: logger.warning(
-            f"Retrying extract_service.batch_extract after {retry_state.attempt_number} attempts"
+            "Retrying extract_service.batch_extract",
+            attempt=retry_state.attempt_number,
+            operation="batch_extract"
         )
     )
     def _extract_with_retry():
@@ -53,7 +62,7 @@ def extract_node(state, extract_service=None, policy: Dict[str, Any] = None, **k
     try:
         extracted_results = _extract_with_retry()
     except Exception as e:
-        logger.error(f"Failed to extract after retries: {e}")
+        logger.error("Failed to extract after retries", error=str(e), error_type=type(e).__name__)
         state["error"] = f"extract_error: {str(e)}"
         state["extracted_data"] = []
         return state
@@ -72,9 +81,12 @@ def extract_node(state, extract_service=None, policy: Dict[str, Any] = None, **k
     
     return state
 
+@trace_node("plan")
+@track_node_metrics("plan")
 def plan_node(state, llm: BaseLanguageModel, policy: Dict[str, Any], **kwargs):
     """決策 fast/deep 與產生 queries（可含 HyDE、多查詢）"""
     q = state["query"]
+    logger.info("Starting plan node", query=q, query_length=len(q))
     use_hyde = policy.get("use_hyde", False)
     multi_query = policy.get("use_multi_query", False)
     max_alts = policy.get("multi_query_alts", 2)
@@ -91,7 +103,9 @@ def plan_node(state, llm: BaseLanguageModel, policy: Dict[str, Any], **kwargs):
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception)),
         before_sleep=lambda retry_state: logger.warning(
-            f"Retrying LLM call after {retry_state.attempt_number} attempts"
+            "Retrying LLM call",
+            attempt=retry_state.attempt_number,
+            operation="plan_llm"
         )
     )
     def _llm_invoke_with_retry(prompt):
@@ -116,7 +130,7 @@ def plan_node(state, llm: BaseLanguageModel, policy: Dict[str, Any], **kwargs):
                 if len(queries) >= 1 + max_alts + (2 if use_hyde else 0):
                     break
     except Exception as e:
-        logger.error(f"Failed to generate queries after retries: {e}")
+        logger.error("Failed to generate queries after retries", error=str(e), error_type=type(e).__name__)
         state["error"] = f"plan_error: {str(e)}"
         # 即使失敗，也使用原始查詢繼續
         queries = [q]
@@ -126,6 +140,8 @@ def plan_node(state, llm: BaseLanguageModel, policy: Dict[str, Any], **kwargs):
     state.setdefault("metrics", {})["queries"] = len(queries)
     return state
 
+@trace_node("retrieve")
+@track_node_metrics("retrieve")
 def retrieve_node(state,
                   retriever,
                   bm25_search_fn=None,
@@ -133,6 +149,7 @@ def retrieve_node(state,
                   policy: Dict[str, Any] = None,
                   **kwargs):
     """檢索（向量 + 選配 BM25 + 選配 RRF）"""
+    logger.info("Starting retrieve node", query_count=len(state.get("queries", [])))
     policy = policy or {}
     top_k = policy.get("top_k", 8)
     enable_rrf = policy.get("use_rrf", False) and bm25_search_fn is not None and rrf_fuse_fn is not None
@@ -163,7 +180,9 @@ def retrieve_node(state,
         wait=wait_exponential(multiplier=1, min=2, max=10),
         retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception)),
         before_sleep=lambda retry_state: logger.warning(
-            f"Retrying retriever call after {retry_state.attempt_number} attempts"
+            "Retrying retriever call",
+            attempt=retry_state.attempt_number,
+            operation="vector_retrieve"
         )
     )
     def _retrieve_with_retry(query, metadata_filters=None):
@@ -187,7 +206,7 @@ def retrieve_node(state,
             vec_docs_all.extend(docs[:top_k])
         vec_docs_all = _unique_by_id(vec_docs_all)
     except Exception as e:
-        logger.error(f"Failed to retrieve documents after retries: {e}")
+        logger.error("Failed to retrieve documents after retries", error=str(e), error_type=type(e).__name__)
         state["error"] = f"retrieve_error: {str(e)}"
         state["docs"] = []
         return state
@@ -199,7 +218,9 @@ def retrieve_node(state,
             wait=wait_exponential(multiplier=1, min=2, max=10),
             retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception)),
             before_sleep=lambda retry_state: logger.warning(
-                f"Retrying BM25 search after {retry_state.attempt_number} attempts"
+                "Retrying BM25 search",
+                attempt=retry_state.attempt_number,
+                operation="bm25_search"
             )
         )
         def _bm25_search_with_retry(query, top_k):
@@ -212,7 +233,8 @@ def retrieve_node(state,
             fused = rrf_fuse_fn(runs, k=top_k)
             docs_final = _unique_by_id(fused)
         except Exception as e:
-            logger.error(f"Failed to perform BM25 search after retries: {e}, falling back to vector search only")
+            logger.error("Failed to perform BM25 search after retries, falling back to vector search only", 
+                        error=str(e), error_type=type(e).__name__)
             # BM25 失敗時，回退到只使用向量搜尋結果
             docs_final = vec_docs_all[:top_k]
     else:
@@ -225,12 +247,15 @@ def retrieve_node(state,
     m["metadata_filters"] = metadata_filters
     return state
 
+@trace_node("synthesize")
+@track_node_metrics("synthesize")
 def synthesize_node(state,
                     llm: BaseLanguageModel,
                     build_context_fn,
                     policy: Dict[str, Any] = None,
                     **kwargs):
     """將檢索結果組上下文並生成答案；失敗時回退簡版"""
+    logger.info("Starting synthesize node", doc_count=len(state.get("docs", [])))
     policy = policy or {}
     max_ctx = policy.get("max_ctx_chars", 6000)
     strict_cite = policy.get("strict_citation", True)
@@ -282,7 +307,9 @@ def synthesize_node(state,
             wait=wait_exponential(multiplier=1, min=2, max=10),
             retry=retry_if_exception_type((ConnectionError, TimeoutError, Exception)),
             before_sleep=lambda retry_state: logger.warning(
-                f"Retrying synthesize LLM call after {retry_state.attempt_number} attempts"
+                "Retrying synthesize LLM call",
+                attempt=retry_state.attempt_number,
+                operation="synthesize_llm"
             )
         )
         def _synthesize_with_retry(prompt):
@@ -301,8 +328,11 @@ def synthesize_node(state,
         state["answer"] = answer_fallback
         return state
 
+@trace_node("validate")
+@track_node_metrics("validate")
 def validate_node(state, policy: Dict[str, Any] = None, **kwargs):
     """最小驗證：若沒有檢索到文件或答案過短，標示警告"""
+    logger.info("Starting validate node")
     policy = policy or {}
     min_docs = policy.get("min_docs", 2)
     min_len = policy.get("min_answer_len", 40)
@@ -317,10 +347,12 @@ def validate_node(state, policy: Dict[str, Any] = None, **kwargs):
         state.setdefault("metrics", {})["warnings"] = warnings
     return state
 
+@trace_node("error_handler")
+@track_node_metrics("error_handler")
 def error_handler_node(state, policy: Dict[str, Any] = None, **kwargs):
     """錯誤處理節點：記錄詳細錯誤日誌並返回標準錯誤回應"""
     error_msg = state.get("error", "Unknown error occurred")
-    logger.error(f"Error handler triggered: {error_msg}")
+    logger.error("Error handler triggered", error=error_msg, request_id=state.get("request_id"))
     
     # 根據錯誤類型生成適當的回應
     if "extract_error" in error_msg:
