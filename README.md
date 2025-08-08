@@ -15,6 +15,8 @@
 - **完整可觀測性**: 結構化日誌、分散式追蹤、度量指標收集
 - **狀態持久化**: LangGraph 工作流程狀態管理與恢復
 - **重試機制**: 智慧重試與錯誤處理策略
+- **強型別化**: 使用 Pydantic v2 BaseModel 進行狀態和輸入驗證
+- **容器健康檢查**: Docker Compose 配置包含健康檢查和自動重啟
 
 ## ⚡ 核心優勢
 
@@ -46,7 +48,7 @@ cd aiops-rag-system
 cp .env.example .env
 # 編輯 .env，填入 Gemini API Key 和可觀測性配置
 
-# 啟動服務
+# 啟動服務（docker-compose.yml 已包含健康檢查和重啟策略）
 docker-compose up -d
 ```
 
@@ -146,6 +148,20 @@ python -m app.main
 # 檢視日誌（開發模式）
 LOG_LEVEL=DEBUG JSON_LOGS=false python -m app.main
 ```
+
+### 強型別化和輸入驗證
+
+系統使用 Pydantic v2 BaseModel 進行狀態管理和 API 輸入驗證：
+
+- **RAGState**: LangGraph 工作流程狀態使用 Pydantic BaseModel
+  - 自動驗證輸入長度和格式
+  - 提供預設值和欄位限制
+  - 支援 LangGraph 的字典介面相容性
+
+- **API 請求驗證**: 
+  - 查詢最大長度: 1000 字元
+  - 原始文本列表最大項目: 100
+  - 自動清理和驗證輸入資料
 
 ### 環境變數配置
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import Any, Dict
+from pydantic import BaseModel, Field, field_validator
+from typing import Any, Dict, Optional, List
 import time, uuid
 
 from langchain_community.vectorstores import OpenSearchVectorSearch
@@ -53,8 +53,70 @@ graph_app = build_graph(
 )
 
 class RAGRequest(BaseModel):
-    query: str
-    # 保留你原本需要的欄位，這裡只展示最小必要
+    """RAG request model with validation"""
+    query: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=1000,
+        description="User query for RAG processing"
+    )
+    
+    # Additional optional fields
+    raw_texts: Optional[List[str]] = Field(
+        default=None,
+        max_items=100,
+        description="Optional raw log/alert texts for processing"
+    )
+    
+    # Configuration overrides
+    top_k: Optional[int] = Field(
+        default=None,
+        ge=1,
+        le=50,
+        description="Number of documents to retrieve"
+    )
+    
+    use_hyde: Optional[bool] = Field(
+        default=None,
+        description="Whether to use HyDE for query expansion"
+    )
+    
+    use_multi_query: Optional[bool] = Field(
+        default=None,
+        description="Whether to use multi-query expansion"
+    )
+    
+    @field_validator('query')
+    @classmethod
+    def validate_query(cls, v: str) -> str:
+        """Validate query is not empty or just whitespace"""
+        if not v or not v.strip():
+            raise ValueError("Query cannot be empty or whitespace only")
+        # Remove excessive whitespace
+        v = ' '.join(v.split())
+        # Check for suspicious patterns that might overload the system
+        if len(v) > 1000:
+            raise ValueError("Query is too long (max 1000 characters)")
+        return v
+    
+    @field_validator('raw_texts')
+    @classmethod
+    def validate_raw_texts(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate and clean raw texts"""
+        if v is None:
+            return v
+        
+        cleaned = []
+        for text in v:
+            if text and text.strip():
+                # Limit individual text length
+                text = text.strip()[:5000]
+                cleaned.append(text)
+        
+        if not cleaned:
+            return None
+        
+        return cleaned
 
 @router.post("/rag/report")
 @track_request_metrics("/rag/report", method="POST")
@@ -92,6 +154,10 @@ def rag_report(req: RAGRequest) -> Dict[str, Any]:
                 "query": req.query,
                 "request_id": request_id
             }
+            
+            # Add raw_texts if provided
+            if req.raw_texts:
+                initial_state["raw_texts"] = req.raw_texts
             
             result = graph_app.invoke(initial_state, config=cfg)
             latency = int((time.time() - start) * 1000)

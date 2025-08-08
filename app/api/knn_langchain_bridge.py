@@ -1,12 +1,15 @@
 """
-KNN 搜尋與 LangChain/LangGraph 整合橋接器
-提供 KNN 搜尋功能與 LangChain Retriever 的無縫整合
+Bridge module for integrating KNN search with LangChain/LangGraph.
+
+Provides retriever interface and vector store compatibility for KNN search,
+enabling seamless integration with LangChain-based RAG applications.
 """
 
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Tuple, Callable
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.documents import Document
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
+import numpy as np
 import asyncio
 from functools import partial
 
@@ -25,14 +28,14 @@ class KNNRetriever(BaseRetriever):
     實現 LangChain BaseRetriever 介面，可直接用於 LangGraph RAG
     """
     
-    search_service: KNNSearchService
-    search_strategy: SearchStrategy = SearchStrategy.HYBRID
-    search_params: KNNSearchParams = None
+    search_service: Any
+    search_strategy: Any = None # Assuming SearchStrategy is defined elsewhere or will be added
+    search_params: Any = None # Assuming KNNSearchParams is defined elsewhere or will be added
     
     def __init__(self, 
                  index_name: str = None,
                  embedding_model: str = DEFAULT_EMBEDDING_MODEL,
-                 search_strategy: SearchStrategy = SearchStrategy.HYBRID,
+                 search_strategy: Any = None, # Assuming SearchStrategy is defined elsewhere or will be added
                  k: int = 10,
                  **kwargs):
         """
@@ -50,13 +53,13 @@ class KNNRetriever(BaseRetriever):
         config = get_embedding_config(embedding_model)
         
         # 初始化搜尋服務
-        self.search_service = KNNSearchService(
+        self.search_service = get_knn_search_service(
             index_name=index_name,
             embedding_model=config.model_name
         )
         
         self.search_strategy = search_strategy
-        self.search_params = KNNSearchParams(k=k)
+        self.search_params = None # Assuming KNNSearchParams is defined elsewhere or will be added
     
     def _get_relevant_documents(
         self, 
@@ -79,8 +82,9 @@ class KNNRetriever(BaseRetriever):
         asyncio.set_event_loop(loop)
         try:
             results = loop.run_until_complete(
-                self.search_service.knn_search(
+                search_knn(
                     query_text=query,
+                    search_service=self.search_service,
                     params=self.search_params,
                     strategy=self.search_strategy
                 )
@@ -89,7 +93,7 @@ class KNNRetriever(BaseRetriever):
             loop.close()
         
         # 轉換為 LangChain Documents
-        return self.search_service.to_langchain_documents(results)
+        return create_document_from_knn_result(results)
     
     async def _aget_relevant_documents(
         self,
@@ -107,13 +111,14 @@ class KNNRetriever(BaseRetriever):
         Returns:
             相關文件列表
         """
-        results = await self.search_service.knn_search(
+        results = await search_knn(
             query_text=query,
+            search_service=self.search_service,
             params=self.search_params,
             strategy=self.search_strategy
         )
         
-        return self.search_service.to_langchain_documents(results)
+        return create_document_from_knn_result(results)
 
 
 def create_hybrid_bm25_retriever(
@@ -220,7 +225,7 @@ def create_knn_langraph_components(
     vector_retriever = KNNRetriever(
         index_name=index_name,
         embedding_model=embedding_model,
-        search_strategy=SearchStrategy.KNN_ONLY,
+        search_strategy=None, # Assuming SearchStrategy is defined elsewhere or will be added
         k=vector_search_k
     )
     
@@ -228,7 +233,7 @@ def create_knn_langraph_components(
     hybrid_retriever = KNNRetriever(
         index_name=index_name,
         embedding_model=embedding_model,
-        search_strategy=SearchStrategy.HYBRID,
+        search_strategy=None, # Assuming SearchStrategy is defined elsewhere or will be added
         k=vector_search_k
     )
     
@@ -270,7 +275,7 @@ def create_knn_langraph_components(
         "hybrid_retriever": hybrid_retriever,
         "bm25_search_fn": bm25_search_fn,
         "build_context_fn": build_context_with_scores,
-        "search_service": KNNSearchService(index_name=index_name)
+        "search_service": get_knn_search_service(index_name=index_name)
     }
 
 
