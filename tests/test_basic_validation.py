@@ -22,8 +22,7 @@ class TestBasicValidation:
         """測試是否能正確導入主要模組"""
         try:
             import src.main
-            import src.api.endpoints
-            import src.core.gemini_service
+            import src.services.gemini_service
             assert True
         except ImportError as e:
             pytest.fail(f"無法導入必要的模組: {e}")
@@ -35,10 +34,12 @@ class TestBasicValidation:
             'uvicorn',
             'pydantic',
             'aiohttp',
-            'opensearch',
+            'opensearchpy',
             'prometheus_client',
             'google.generativeai',
-            'langchain',
+            'langgraph',
+            'langchain_core',
+            'langchain_community',
             'numpy',
             'dotenv',
             'pytest',

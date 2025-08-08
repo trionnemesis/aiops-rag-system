@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse, Response
 from contextlib import asynccontextmanager
 import logging
 import asyncio
+import os
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from src.models.schemas import ReportRequest, ReportResponse, InsightReport
 from src.services.rag_service import RAGService
@@ -26,6 +27,12 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up AIOps RAG System...")
     try:
+        # Skip external service initialization during tests
+        if os.environ.get("TESTING", "").lower() == "true":
+            logger.info("TESTING mode detected. Skipping OpenSearch initialization and metrics collection.")
+            yield
+            return
+
         opensearch = OpenSearchService()
         await opensearch.create_index()
         logger.info("OpenSearch index initialized")
