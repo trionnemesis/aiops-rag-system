@@ -24,9 +24,8 @@
 - [錯誤處理最佳實踐](./development/error-handling.md) - 錯誤處理機制詳解
 - [重試與錯誤處理](./retry_and_error_handling.md) - 重試機制和錯誤處理策略 🆕
 - [狀態持久化指南](./state_persistence_guide.md) - LangGraph 狀態管理與持久化 🆕
-- [效能優化指南](./development/optimization-guide.md) - RAG 系統優化策略
-- [系統優化說明](./development/optimizations.md) - 優化實作細節
-- [優化總結](./development/OPTIMIZATION_SUMMARY.md) - 優化成果總覽
+- [效能優化指南](./development/optimization-guide.md) - RAG 系統優化策略與實作細節
+- [系統優化說明](./development/optimizations.md) - 提示工程與監控優化
 - [向量檢索效能優化](./vector-performance-optimization.md) - 向量搜尋效能監控與優化 ⚡
 
 ### 🚀 部署指南
@@ -40,6 +39,9 @@
 ### 🔗 整合與遷移
 - [LangChain 重構報告](./langchain_refactoring_report.md) - LangChain LCEL 重構詳細說明
 - [LangChain 遷移指南](./langchain_migration_guide.md) - 從原實作遷移到 LCEL 指南
+
+### 📝 其他資源
+- [更新日誌](./CHANGELOG.md) - 版本更新和功能變更記錄
 
 ## 🎯 快速導航
 

@@ -202,9 +202,8 @@ ENABLE_STATE_PERSISTENCE=true
 - [錯誤處理最佳實踐](./docs/development/error-handling.md) - 錯誤處理機制
 - [重試與錯誤處理](./docs/retry_and_error_handling.md) - 重試機制和錯誤處理策略
 - [狀態持久化指南](./docs/state_persistence_guide.md) - LangGraph 狀態管理與持久化
-- [效能優化指南](./docs/development/optimization-guide.md) - RAG 系統優化
-- [系統優化說明](./docs/development/optimizations.md) - 優化實作細節
-- [優化總結](./docs/development/OPTIMIZATION_SUMMARY.md) - 優化成果總結
+- [效能優化指南](./docs/development/optimization-guide.md) - RAG 系統優化與實作細節
+- [系統優化說明](./docs/development/optimizations.md) - 提示工程與監控優化
 
 ### 🚀 效能優化
 - [向量檢索效能優化](./docs/vector-performance-optimization.md) - 向量搜尋效能監控與優化
@@ -226,7 +225,7 @@ ENABLE_STATE_PERSISTENCE=true
 - [文檔目錄](./docs/README.md) - 完整文檔導航和說明
 
 ### 📝 其他資源
-- [更新日誌](./CHANGELOG.md) - 版本更新和功能變更記錄
+- [更新日誌](./docs/CHANGELOG.md) - 版本更新和功能變更記錄
 - [環境設定範例](./.env.example) - 環境變數配置模板
 
 ## 🤝 貢獻
