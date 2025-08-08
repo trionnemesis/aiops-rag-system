@@ -20,6 +20,7 @@
 
 ### 💻 開發指南
 - [本地環境設置](./development/local-setup.md) - 開發環境配置指南
+- [測試架構指南](./development/test-architecture.md) - LangGraph 測試策略與實踐 🆕
 - [錯誤處理最佳實踐](./development/error-handling.md) - 錯誤處理機制詳解
 - [重試與錯誤處理](./retry_and_error_handling.md) - 重試機制和錯誤處理策略 🆕
 - [狀態持久化指南](./state_persistence_guide.md) - LangGraph 狀態管理與持久化 🆕
@@ -49,11 +50,12 @@
 4. 查看 [端點參考](./api/endpoints.md) 開始使用 API
 
 ### 進階開發
-1. 學習 [錯誤處理最佳實踐](./development/error-handling.md) 提升程式碼品質
-2. 實作 [重試與錯誤處理](./retry_and_error_handling.md) 增強系統穩定性
-3. 配置 [狀態持久化](./state_persistence_guide.md) 實現工作流程狀態管理
-4. 研究 [效能優化指南](./development/optimization-guide.md) 優化系統效能
-5. 參考 [LangChain 重構報告](./langchain_refactoring_report.md) 了解架構演進
+1. 學習 [測試架構指南](./development/test-architecture.md) 掌握 LangGraph 測試策略
+2. 掌握 [錯誤處理最佳實踐](./development/error-handling.md) 提升程式碼品質
+3. 實作 [重試與錯誤處理](./retry_and_error_handling.md) 增強系統穩定性
+4. 配置 [狀態持久化](./state_persistence_guide.md) 實現工作流程狀態管理
+5. 研究 [效能優化指南](./development/optimization-guide.md) 優化系統效能
+6. 參考 [LangChain 重構報告](./langchain_refactoring_report.md) 了解架構演進
 
 ### 系統部署
 1. 使用 [Docker 部署](./deployment/docker-guide.md) 快速部署系統

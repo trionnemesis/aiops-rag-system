@@ -198,6 +198,7 @@ ENABLE_STATE_PERSISTENCE=true
 
 ### 💻 開發指南
 - [本地環境設置](./docs/development/local-setup.md) - 開發環境配置
+- [測試架構指南](./docs/development/test-architecture.md) - LangGraph 測試策略與實踐
 - [錯誤處理最佳實踐](./docs/development/error-handling.md) - 錯誤處理機制
 - [重試與錯誤處理](./docs/retry_and_error_handling.md) - 重試機制和錯誤處理策略
 - [狀態持久化指南](./docs/state_persistence_guide.md) - LangGraph 狀態管理與持久化
