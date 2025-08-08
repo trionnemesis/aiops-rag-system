@@ -33,7 +33,15 @@ docker-compose up -d --build
 
 # 檢查服務狀態
 docker-compose ps
+
+# 檢查健康狀態（所有服務都已配置健康檢查）
+docker-compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Health}}"
 ```
+
+> **注意**: 系統已配置完整的健康檢查和重啟策略：
+> - 所有服務都有 `restart: on-failure` 政策
+> - 主要服務（app、opensearch、redis、prometheus）包含健康檢查
+> - 服務依賴使用 `condition: service_healthy` 確保啟動順序
 
 ### 3. 初始化系統
 
