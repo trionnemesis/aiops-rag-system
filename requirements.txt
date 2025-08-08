@@ -14,10 +14,13 @@ pydantic
 # LLM Providers (選擇你需要的)
 langchain-openai  # for OpenAI
 langchain-google-genai  # for Google Gemini
+google-generativeai  # direct Google Generative AI SDK
 
 # 其他可能需要的
 python-dotenv  # 環境變數管理
 httpx  # async HTTP client
+aiohttp  # PrometheusService 使用的 HTTP client
+async-lru  # 用於快取
 
 # KNN 向量搜尋相關
 tqdm  # 進度條顯示
