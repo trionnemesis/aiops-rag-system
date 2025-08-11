@@ -171,7 +171,108 @@ curl -X POST http://localhost:8000/api/v1/cache/clear
 }
 ```
 
-### 4. 系統資訊
+### 4. KNN 向量搜尋
+
+#### `POST /api/v1/knn/search`
+
+執行 KNN 向量搜尋，支援多種搜尋策略。
+
+**請求參數**:
+
+| 參數 | 類型 | 必填 | 預設值 | 說明 |
+|------|------|------|---------|------|
+| `query` | string | 是 | - | 搜尋查詢文字 |
+| `k` | integer | 否 | 10 | 返回結果數量 (1-50) |
+| `strategy` | string | 否 | "hybrid" | 搜尋策略 |
+| `num_candidates` | integer | 否 | k*10 | HNSW 候選數量 |
+| `min_score` | float | 否 | null | 最低分數門檻 |
+| `filter` | object | 否 | null | 過濾條件 |
+
+**搜尋策略選項**:
+- `knn_only`: 純向量搜尋
+- `hybrid`: 混合搜尋（向量 + BM25）
+- `multi_vector`: 多向量搜尋
+- `rerank`: 重新排序搜尋
+
+**請求範例**:
+```bash
+curl -X POST http://localhost:8000/api/v1/knn/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Apache 記憶體使用率過高",
+    "k": 5,
+    "strategy": "hybrid",
+    "filter": {
+      "term": {"category": "incident_report"}
+    }
+  }'
+```
+
+**響應範例**:
+```json
+{
+  "status": "success",
+  "query": "Apache 記憶體使用率過高",
+  "strategy": "hybrid",
+  "total_results": 5,
+  "execution_time_ms": 85,
+  "results": [
+    {
+      "doc_id": "E-2024-03-15",
+      "title": "前台網站服務無回應事件",
+      "content": "...",
+      "score": 0.92,
+      "tags": ["apache", "memory", "performance"],
+      "category": "incident_report",
+      "highlights": [
+        "Apache 的 <em>記憶體使用率</em>持續在 90% 以上"
+      ]
+    }
+  ]
+}
+```
+
+#### `POST /api/v1/knn/explain`
+
+解釋特定文件的搜尋評分。
+
+**請求參數**:
+
+| 參數 | 類型 | 必填 | 說明 |
+|------|------|------|------|
+| `query` | string | 是 | 查詢文字 |
+| `doc_id` | string | 是 | 文件 ID |
+
+**請求範例**:
+```bash
+curl -X POST http://localhost:8000/api/v1/knn/explain \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Apache 效能問題",
+    "doc_id": "E-2024-03-15"
+  }'
+```
+
+**響應範例**:
+```json
+{
+  "doc_id": "E-2024-03-15",
+  "title": "前台網站服務無回應事件",
+  "score": 0.92,
+  "explanation": {
+    "value": 0.92,
+    "description": "knn similarity",
+    "details": [
+      {
+        "value": 0.92,
+        "description": "vector similarity score"
+      }
+    ]
+  }
+}
+```
+
+### 5. 系統資訊
 
 #### `GET /api/v1/info`
 
