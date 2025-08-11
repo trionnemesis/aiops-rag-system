@@ -91,7 +91,7 @@
 
 ```bash
 # Clone 專案
-git clone https://github.com/[your-org]/aiops-rag-system.git
+git clone https://github.com/trionnemesis/aiops-rag-system.git
 cd aiops-rag-system
 
 # 設定環境變數
@@ -122,6 +122,46 @@ curl -X POST http://localhost:8080/api/v1/rag/report \
 - **Metrics**: http://localhost:8000/metrics
 
 ## 🏗️ 系統架構
+
+### 核心模組結構
+
+```
+aiops-rag-system/
+├── app/                      # FastAPI 應用程式
+│   ├── api/                  # API 路由與端點
+│   │   ├── routes.py         # 主要 API 路由
+│   │   ├── knn_langchain_bridge.py  # KNN 與 LangChain 整合
+│   │   └── example_integration.py   # 整合範例
+│   ├── graph/                # LangGraph 工作流程
+│   │   └── build.py          # DAG 流程建構
+│   └── observability/        # 可觀測性功能
+│       ├── logging.py        # 結構化日誌
+│       ├── metrics.py        # Prometheus 指標
+│       └── tracing.py        # 分散式追蹤
+├── src/                      # 核心服務層
+│   ├── services/             # 商業邏輯服務
+│   │   ├── knn_search_service.py    # KNN 向量搜尋
+│   │   ├── opensearch_service.py    # OpenSearch 整合
+│   │   ├── gemini_service.py        # Gemini LLM 服務
+│   │   ├── rag_service.py           # RAG 核心邏輯
+│   │   ├── prometheus_service.py    # 指標收集
+│   │   └── langchain/               # LangChain 整合
+│   ├── models/               # 資料模型
+│   ├── config/               # 配置管理
+│   └── utils/                # 工具函式
+├── tests/                    # 測試套件
+├── scripts/                  # 部署與管理腳本
+├── examples/                 # 使用範例
+├── configs/                  # 配置檔案
+└── docs/                     # 專案文檔
+    ├── api/                  # API 文檔
+    ├── architecture/         # 架構設計文檔
+    ├── development/          # 開發指南
+    ├── deployment/           # 部署文檔
+    └── testing/              # 測試相關文檔
+```
+
+### 系統架構圖
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
@@ -180,7 +220,7 @@ curl -X POST http://localhost:8080/api/v1/rag/report \
 | `/api/v1/knn/search` | POST | KNN 向量搜尋（支援多策略） |
 | `/api/v1/knn/explain` | POST | 解釋搜尋結果評分 |
 | `/api/v1/health` | GET | 健康檢查 |
-| `/api/v1/metrics` | GET | Prometheus 指標 |
+| `/metrics` | GET | Prometheus 指標 |
 | `/docs` | GET | Swagger API 文檔 |
 
 ## 🛠️ 開發指南
@@ -294,6 +334,7 @@ ENABLE_STATE_PERSISTENCE=true
 
 ### 🏗️ 系統架構
 - [系統設計](./docs/architecture/system-design.md) - 整體架構和核心組件
+- [KNN 向量搜尋架構](./docs/architecture/knn-vector-search.md) - 向量搜尋系統設計
 - [可觀測性指南](./docs/observability.md) - 結構化日誌、追蹤、指標詳細說明
 
 ### 💻 開發指南
@@ -304,6 +345,10 @@ ENABLE_STATE_PERSISTENCE=true
 - [狀態持久化指南](./docs/state_persistence_guide.md) - LangGraph 狀態管理與持久化
 - [效能優化指南](./docs/development/optimization-guide.md) - RAG 系統優化與實作細節
 - [系統優化說明](./docs/development/optimizations.md) - 提示工程與監控優化
+- [KNN 索引指南](./docs/development/knn-index-guide.md) - KNN 索引建立與管理
+
+### 🧪 測試文檔
+- [測試架構](./docs/testing/README_new_tests.md) - 測試策略與實踐
 
 ### 🚀 效能優化
 - [向量檢索效能優化](./docs/vector-performance-optimization.md) - 向量搜尋效能監控與優化
@@ -313,6 +358,7 @@ ENABLE_STATE_PERSISTENCE=true
 
 ### 📡 API 文檔
 - [端點參考](./docs/api/endpoints.md) - 詳細的 API 端點說明
+- [KNN 搜尋 API](./docs/api/knn-search-api.md) - KNN 搜尋 API 詳細說明
 
 ### 🔗 LangChain 整合
 - [重構報告](./docs/langchain_refactoring_report.md) - LangChain LCEL 重構詳細說明
@@ -344,4 +390,4 @@ MIT License - 詳見 [LICENSE](LICENSE)
 
 ⭐ 覺得有幫助嗎？給個星星吧！
 
-📊 **最後更新**: 2024年1月
+📊 **最後更新**: 2024年12月
