@@ -462,3 +462,303 @@ class TestGraphFlow:
         metrics = result["metrics"]
         assert "retrieved_count" in metrics
         assert metrics["retrieved_count"] > 0
+
+
+class TestRetryAndErrorHandling:
+    """測試重試機制和錯誤處理的整合"""
+    
+    @pytest.fixture
+    def flaky_llm(self):
+        """建立會隨機失敗的模擬 LLM"""
+        llm = Mock()
+        self.llm_call_count = 0
+        
+        def flaky_invoke(prompt, **kwargs):
+            self.llm_call_count += 1
+            if self.llm_call_count <= 2:  # 前兩次呼叫失敗
+                raise ConnectionError("模擬 LLM API 連線錯誤")
+            return AIMessage(content="第三次成功的回答")
+        
+        async def flaky_ainvoke(prompt, **kwargs):
+            return flaky_invoke(prompt, **kwargs)
+        
+        llm.invoke = Mock(side_effect=flaky_invoke)
+        llm.ainvoke = AsyncMock(side_effect=flaky_ainvoke)
+        return llm
+    
+    @pytest.fixture
+    def flaky_retriever(self):
+        """建立會隨機失敗的模擬檢索器"""
+        retriever = Mock()
+        self.retriever_call_count = 0
+        
+        def flaky_retrieve(query):
+            self.retriever_call_count += 1
+            if self.retriever_call_count == 1:  # 第一次呼叫失敗
+                raise TimeoutError("模擬向量資料庫超時")
+            return [
+                Document(
+                    page_content="重試後成功檢索的文件",
+                    metadata={"id": "retry-doc", "title": "重試文件"}
+                )
+            ]
+        
+        async def flaky_aretrieve(query):
+            return flaky_retrieve(query)
+        
+        retriever.invoke = Mock(side_effect=flaky_retrieve)
+        retriever.ainvoke = AsyncMock(side_effect=flaky_aretrieve)
+        return retriever
+    
+    @pytest.fixture
+    def always_fail_llm(self):
+        """建立永遠失敗的模擬 LLM"""
+        llm = Mock()
+        
+        def always_fail(*args, **kwargs):
+            raise ConnectionError("永久性 LLM 連線錯誤")
+        
+        llm.invoke = Mock(side_effect=always_fail)
+        llm.ainvoke = AsyncMock(side_effect=always_fail)
+        return llm
+    
+    @pytest.fixture
+    def always_fail_retriever(self):
+        """建立永遠失敗的模擬檢索器"""
+        retriever = Mock()
+        
+        def always_fail(*args, **kwargs):
+            raise ConnectionError("永久性檢索器連線錯誤")
+        
+        retriever.invoke = Mock(side_effect=always_fail)
+        retriever.ainvoke = AsyncMock(side_effect=always_fail)
+        return retriever
+    
+    def test_llm_retry_mechanism_success(self, flaky_llm, mock_retriever):
+        """測試 LLM 重試機制最終成功的情況"""
+        # 重置計數器
+        self.llm_call_count = 0
+        
+        # 建立圖形
+        policy = {
+            "use_rrf": False,
+            "top_k": 5,
+            "use_hyde": True  # 啟用 HyDE 以觸發 LLM 呼叫
+        }
+        
+        app = build_graph(
+            llm=flaky_llm,
+            retriever=mock_retriever,
+            policy=policy
+        )
+        
+        # 執行查詢
+        result = app.invoke({
+            "query": "測試重試機制",
+            "request_id": "test-retry-1"
+        })
+        
+        # 驗證重試成功
+        assert "error" not in result or result["error"] is None
+        assert result["answer"] is not None
+        assert "第三次成功的回答" in result["answer"]
+        
+        # 驗證 LLM 被呼叫了3次（2次失敗 + 1次成功）
+        assert flaky_llm.invoke.call_count >= 3
+    
+    def test_retriever_retry_mechanism_success(self, mock_llm, flaky_retriever):
+        """測試檢索器重試機制最終成功的情況"""
+        # 重置計數器
+        self.retriever_call_count = 0
+        
+        # 建立圖形
+        policy = {
+            "use_rrf": False,
+            "top_k": 5,
+            "use_hyde": False
+        }
+        
+        app = build_graph(
+            llm=mock_llm,
+            retriever=flaky_retriever,
+            policy=policy
+        )
+        
+        # 執行查詢
+        result = app.invoke({
+            "query": "測試檢索重試",
+            "request_id": "test-retry-2"
+        })
+        
+        # 驗證重試成功
+        assert "error" not in result or result["error"] is None
+        assert result["answer"] is not None
+        
+        # 驗證檢索器被呼叫了2次（1次失敗 + 1次成功）
+        assert flaky_retriever.invoke.call_count >= 2
+        
+        # 驗證使用了重試後的文件
+        assert result.get("documents") is not None
+        assert len(result["documents"]) > 0
+        assert "重試後成功檢索的文件" in result["documents"][0].page_content
+    
+    def test_llm_retry_exhausted_triggers_error_handler(self, always_fail_llm, mock_retriever):
+        """測試 LLM 重試次數耗盡後觸發錯誤處理節點"""
+        # 建立圖形
+        policy = {
+            "use_rrf": False,
+            "top_k": 5,
+            "use_hyde": True  # 啟用 HyDE 以觸發 LLM 呼叫
+        }
+        
+        app = build_graph(
+            llm=always_fail_llm,
+            retriever=mock_retriever,
+            policy=policy
+        )
+        
+        # 執行查詢
+        result = app.invoke({
+            "query": "測試 LLM 失敗",
+            "request_id": "test-fail-1"
+        })
+        
+        # 驗證進入錯誤處理流程
+        assert result.get("error") is not None
+        assert "plan_error" in result["error"] or "synthesize_error" in result["error"]
+        
+        # 驗證錯誤處理節點生成了適當的回應
+        assert result["answer"] is not None
+        assert "系統正在處理您的查詢" in result["answer"] or "系統正在生成回答時遇到問題" in result["answer"]
+        
+        # 驗證錯誤指標
+        assert result.get("metrics", {}).get("error_handled") is True
+        assert result.get("metrics", {}).get("error_type") is not None
+    
+    def test_retriever_retry_exhausted_triggers_error_handler(self, mock_llm, always_fail_retriever):
+        """測試檢索器重試次數耗盡後觸發錯誤處理節點"""
+        # 建立圖形
+        policy = {
+            "use_rrf": False,
+            "top_k": 5,
+            "use_hyde": False
+        }
+        
+        app = build_graph(
+            llm=mock_llm,
+            retriever=always_fail_retriever,
+            policy=policy
+        )
+        
+        # 執行查詢
+        result = app.invoke({
+            "query": "測試檢索失敗",
+            "request_id": "test-fail-2"
+        })
+        
+        # 驗證進入錯誤處理流程
+        assert result.get("error") is not None
+        assert "retrieve_error" in result["error"]
+        
+        # 驗證錯誤處理節點生成了適當的回應
+        assert result["answer"] is not None
+        assert "系統無法存取知識庫" in result["answer"]
+        
+        # 驗證錯誤指標
+        assert result.get("metrics", {}).get("error_handled") is True
+        assert result.get("metrics", {}).get("error_type") == "retrieve_error"
+    
+    @patch('app.graph.nodes.retry')
+    def test_custom_retry_configuration(self, mock_retry, mock_llm, mock_retriever):
+        """測試自定義重試配置"""
+        # 配置 mock_retry 來追蹤呼叫
+        mock_retry.return_value = lambda func: func
+        
+        # 建立節點（這會觸發裝飾器）
+        from app.graph import nodes
+        
+        # 驗證重試裝飾器被正確配置
+        # 檢查 retry 被呼叫的參數
+        retry_calls = mock_retry.call_args_list
+        
+        # 應該有多個重試配置（針對不同的節點）
+        assert len(retry_calls) > 0
+        
+        # 檢查重試配置參數
+        for call in retry_calls:
+            kwargs = call[1]
+            # 驗證 stop_after_attempt 參數
+            if 'stop' in kwargs:
+                # 確保設定了重試次數限制
+                assert hasattr(kwargs['stop'], '__call__')
+            # 驗證 wait_exponential 參數
+            if 'wait' in kwargs:
+                # 確保設定了指數退避
+                assert hasattr(kwargs['wait'], '__call__')
+            # 驗證 retry_if_exception_type 參數
+            if 'retry' in kwargs:
+                # 確保設定了特定的異常類型
+                assert hasattr(kwargs['retry'], '__call__')
+    
+    def test_multiple_failures_cascade_handling(self, flaky_llm, flaky_retriever):
+        """測試多個組件同時失敗時的級聯處理"""
+        # 重置計數器
+        self.llm_call_count = 0
+        self.retriever_call_count = 0
+        
+        # 建立圖形
+        policy = {
+            "use_rrf": False,
+            "top_k": 5,
+            "use_hyde": True  # 啟用 HyDE
+        }
+        
+        app = build_graph(
+            llm=flaky_llm,
+            retriever=flaky_retriever,
+            policy=policy
+        )
+        
+        # 執行查詢
+        result = app.invoke({
+            "query": "測試多重失敗",
+            "request_id": "test-cascade-1"
+        })
+        
+        # 驗證系統能夠處理多個組件的失敗和重試
+        # 最終應該成功
+        assert "error" not in result or result["error"] is None
+        assert result["answer"] is not None
+        
+        # 驗證兩個組件都經歷了重試
+        assert flaky_llm.invoke.call_count >= 3  # LLM 重試
+        assert flaky_retriever.invoke.call_count >= 2  # 檢索器重試
+    
+    @pytest.mark.asyncio
+    async def test_async_retry_mechanism(self, flaky_llm, mock_retriever):
+        """測試非同步執行時的重試機制"""
+        # 重置計數器
+        self.llm_call_count = 0
+        
+        # 建立支持非同步的節點版本
+        from app.graph.nodes import plan_node
+        
+        # 建立狀態
+        state = RAGState(
+            query="非同步測試查詢",
+            request_id="async-test-1"
+        )
+        
+        # 使用 flaky_llm 執行計劃節點
+        with patch('app.graph.nodes.llm', flaky_llm):
+            # 這應該會觸發重試機制
+            result_state = await asyncio.to_thread(
+                plan_node,
+                state,
+                llm=flaky_llm,
+                policy={"use_hyde": True}
+            )
+        
+        # 驗證非同步重試成功
+        assert result_state.get("error") is None
+        assert result_state.get("generated_query") is not None
