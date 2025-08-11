@@ -35,6 +35,56 @@
 | 💾 **狀態管理** | 工作流程狀態持久化 | 支援中斷恢復 |
 | 🔄 **容錯機制** | 智慧重試策略 | 提升系統可靠性 |
 
+### 🎨 KNN 向量搜尋亮點功能
+
+#### 多策略搜尋支援
+系統實作了四種進階搜尋策略，可根據不同場景選擇最優方案：
+
+1. **純向量搜尋 (KNN_ONLY)**
+   - 基於 HNSW 演算法的高效向量檢索
+   - 適合語義相似度匹配
+   - 支援自訂 num_candidates 和 min_score 參數
+
+2. **混合搜尋 (HYBRID)**
+   - 結合向量搜尋與 BM25 文字搜尋
+   - 同時考慮語義相似度和關鍵詞匹配
+   - 支援結果高亮顯示
+
+3. **多向量搜尋 (MULTI_VECTOR)**
+   - 自動生成查詢變體進行多維度檢索
+   - 提高召回率和搜尋全面性
+   - 智慧去重和結果融合
+
+4. **重新排序搜尋 (RERANK)**
+   - 先寬鬆檢索後精準重排
+   - 結合語義相似度和關鍵詞匹配度
+   - 適合高精度需求場景
+
+#### 強型別驗證與資料模型
+使用 Pydantic v2 BaseModel 實現完整的型別安全：
+
+- **搜尋參數驗證** (`KNNSearchParams`)：
+  - 自動驗證 k 值範圍 (1-50)
+  - 確保 num_candidates 合理性
+  - 過濾條件結構化驗證
+
+- **搜尋結果模型** (`SearchResult`)：
+  - 標準化的結果格式
+  - 包含分數、元數據、高亮等完整資訊
+  - 便於下游處理和展示
+
+- **RAG 狀態管理** (`RAGState`)：
+  - LangGraph 工作流程狀態強型別化
+  - 自動驗證查詢長度 (1-1000 字元)
+  - 支援最多 100 個原始文本輸入
+  - 內建欄位驗證器確保資料品質
+
+#### 效能監控與可觀測性
+- 每個搜尋策略的獨立延遲監控
+- 結果數量和品質指標追蹤
+- HNSW ef_search 參數動態調整
+- 完整的 Prometheus 指標整合
+
 ## 🚀 快速開始
 
 ### 1. 一鍵部署
@@ -127,6 +177,8 @@ curl -X POST http://localhost:8080/api/v1/rag/report \
 |------|------|------|
 | `/api/v1/rag/report` | POST | 生成 RAG 報告 |
 | `/api/v1/rag/extract` | POST | 結構化資訊提取 |
+| `/api/v1/knn/search` | POST | KNN 向量搜尋（支援多策略） |
+| `/api/v1/knn/explain` | POST | 解釋搜尋結果評分 |
 | `/api/v1/health` | GET | 健康檢查 |
 | `/api/v1/metrics` | GET | Prometheus 指標 |
 | `/docs` | GET | Swagger API 文檔 |
@@ -162,6 +214,38 @@ LOG_LEVEL=DEBUG JSON_LOGS=false python -m app.main
   - 查詢最大長度: 1000 字元
   - 原始文本列表最大項目: 100
   - 自動清理和驗證輸入資料
+
+### KNN 向量搜尋使用範例
+
+```python
+from src.services.knn_search_service import (
+    KNNSearchService, 
+    KNNSearchParams, 
+    SearchStrategy
+)
+
+# 初始化服務
+search_service = KNNSearchService(
+    index_name="aiops_knowledge_base"
+)
+
+# 執行混合搜尋
+results = await search_service.knn_search(
+    query_text="Apache 記憶體洩漏問題",
+    params=KNNSearchParams(
+        k=10,
+        num_candidates=100,
+        min_score=0.7
+    ),
+    strategy=SearchStrategy.HYBRID
+)
+
+# 處理結果
+for result in results:
+    print(f"標題: {result.title}")
+    print(f"分數: {result.score}")
+    print(f"高亮: {result.highlights}")
+```
 
 ### 環境變數配置
 
