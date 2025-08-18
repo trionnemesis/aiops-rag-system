@@ -28,7 +28,7 @@
 | 📊 **LangExtract** | 結構化資訊提取 | 精準元數據過濾 |
 | 🔍 **KNN 向量搜尋** | HNSW 演算法優化 | 高精度語義檢索 |
 | ⚡ **高效能** | 智慧快取機制 | 85% API 成本節省 |
-| 🛡️ **企業級** | 完整錯誤處理 | 85%+ 測試覆蓋率 |
+| 🛡️ **企業級** | 完整錯誤處理 | 目標: 85%+ 測試覆蓋率 |
 | 📊 **即時監控** | Prometheus + Grafana | 即時系統狀態 |
 | 🚀 **效能優化** | 向量檢索效能監控 | P95 < 200ms |
 | 🔍 **可觀測性** | 結構化日誌 + 分散式追蹤 | 完整請求鏈路追蹤 |
@@ -232,7 +232,14 @@ aiops-rag-system/
 pip install -r requirements.txt
 
 # 執行測試
-pytest tests/ --cov=app --cov-fail-under=85
+pytest tests/ --cov=. --cov-report=term-missing --cov-report=html
+
+# 或使用測試覆蓋率腳本
+./run_coverage.sh
+
+# 檢視測試覆蓋率報告
+# HTML 報告會產生在 htmlcov/ 目錄
+# 詳細報告請參考 coverage_report.md
 
 # 啟動開發伺服器
 python -m app.main
@@ -320,7 +327,9 @@ ENABLE_STATE_PERSISTENCE=true
 - **API 成本**: 降低 85%
 - **快取命中率**: 70%+  
 - **回應時間**: < 5秒 (P95)
-- **測試覆蓋率**: 85%+
+- **測試覆蓋率**: 
+  - 目標: 85%+
+  - 當前: 1% ⚠️ ([詳細報告](./coverage_report.md))
 - **向量搜尋延遲**: < 200ms (P95)
 - **每秒查詢數 (QPS)**: 支援 100+ QPS
 - **失敗率**: < 1%
@@ -349,6 +358,7 @@ ENABLE_STATE_PERSISTENCE=true
 
 ### 🧪 測試文檔
 - [測試架構](./docs/testing/README_new_tests.md) - 測試策略與實踐
+- [測試覆蓋率報告](./coverage_report.md) - 當前測試覆蓋率狀態與改進計畫
 
 ### 🚀 效能優化
 - [向量檢索效能優化](./docs/vector-performance-optimization.md) - 向量搜尋效能監控與優化
@@ -378,7 +388,7 @@ ENABLE_STATE_PERSISTENCE=true
 
 歡迎提交 Issue 和 PR！請確保：
 - 遵循程式碼規範
-- 維持測試覆蓋率 85%+
+- 維持測試覆蓋率 85%+ (當前: 1% - 需要改進)
 - 更新相關文件
 - 包含適當的日誌和追蹤
 
