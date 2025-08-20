@@ -234,8 +234,7 @@ services:
       - JAEGER_ENDPOINT=jaeger:6831
       - METRICS_PORT=8000
     ports:
-      - "8080:8080"    # API 端口
-      - "8000:8000"    # Metrics 端口
+      - "8000:8000"    # API 和 Metrics 端口
 
   jaeger:
     image: jaegertracing/all-in-one:latest
