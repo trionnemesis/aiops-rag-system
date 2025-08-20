@@ -87,6 +87,8 @@
 
 ## 🚀 快速開始
 
+> 📖 **完整部署指南**: 請參考 [v1.0 首次部署指南](./docs/deployment/v1.0-deployment-guide.md) 了解詳細步驟與疑難排解。
+
 ### 1. 一鍵部署
 
 ```bash
@@ -96,25 +98,38 @@ cd aiops-rag-system
 
 # 設定環境變數
 cp .env.example .env
-# 編輯 .env，填入 Gemini API Key 和可觀測性配置
+# 編輯 .env，填入 Gemini API Key
+# 詳細設定說明請參考 .env.example 中的註解
 
-# 啟動服務（docker-compose.yml 已包含健康檢查和重啟策略）
-docker-compose up -d
+# 啟動服務（包含健康檢查）
+docker-compose up -d --build
+
+# 初始化 OpenSearch 索引
+docker-compose exec app python scripts/init_opensearch.py
+
+# 建立向量索引
+docker-compose exec app python scripts/build_knn_index.py
 ```
 
-### 2. 測試 API
+### 2. 驗證部署
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/rag/report \
+# 檢查服務健康狀態
+docker-compose ps
+
+# 測試 API
+curl -X POST http://localhost:8000/api/v1/rag/report \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "如何解決 Kubernetes Pod OOMKilled 問題"
+    "query": "如何解決 Apache 效能問題？",
+    "model": "gemini-flash"
   }'
 ```
 
 ### 3. 存取服務
 
-- **API 文檔**: http://localhost:8080/docs
+- **API 文檔**: http://localhost:8000/docs
+- **OpenSearch Dashboards**: http://localhost:5601
 - **Grafana**: http://localhost:3000 (admin/admin)
 - **Prometheus**: http://localhost:9090
 - **Jaeger UI**: http://localhost:16686
@@ -354,6 +369,7 @@ ENABLE_STATE_PERSISTENCE=true
 - [向量檢索效能優化](./docs/vector-performance-optimization.md) - 向量搜尋效能監控與優化
 
 ### 🚀 部署指南
+- [v1.0 首次部署指南](./docs/deployment/v1.0-deployment-guide.md) - 詳細的首次部署步驟與初始化流程
 - [Docker 部署](./docs/deployment/docker-guide.md) - 容器化部署完整指南
 
 ### 📡 API 文檔
