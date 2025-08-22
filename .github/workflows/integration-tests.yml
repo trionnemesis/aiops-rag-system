@@ -1,0 +1,220 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      debug_enabled:
+        type: boolean
+        description: 'Enable debug mode'
+        required: false
+        default: false
+
+env:
+  PYTHON_VERSION: '3.11'
+  DOCKER_BUILDKIT: 1
+  COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    services:
+      # We'll use docker-compose instead of GitHub services
+      # to better replicate the production environment
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-integration-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-integration-
+          ${{ runner.os }}-pip-
+    
+    - name: Install test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio pytest-timeout pytest-xdist
+        pip install docker-compose docker opensearch-py redis requests
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Cache Docker layers
+      uses: actions/cache@v4
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-
+    
+    - name: Build test images
+      run: |
+        docker-compose -f docker-compose.test.yml build --parallel
+    
+    - name: Start test environment
+      run: |
+        docker-compose -f docker-compose.test.yml up -d
+        echo "Waiting for services to be healthy..."
+        
+        # Wait for services with timeout
+        timeout=300
+        elapsed=0
+        while [ $elapsed -lt $timeout ]; do
+          if docker-compose -f docker-compose.test.yml ps | grep -q "unhealthy\|starting"; then
+            echo "Services still starting... ($elapsed/$timeout seconds)"
+            sleep 10
+            elapsed=$((elapsed + 10))
+          else
+            echo "All services appear to be ready!"
+            break
+          fi
+        done
+        
+        # Show service status
+        docker-compose -f docker-compose.test.yml ps
+    
+    - name: Check service health
+      run: |
+        # Check OpenSearch
+        curl -f http://localhost:9200/_cluster/health?pretty || exit 1
+        
+        # Check Redis
+        docker exec aiops-redis-test redis-cli ping || exit 1
+        
+        # Check API
+        curl -f http://localhost:8000/health || exit 1
+    
+    - name: Initialize test data
+      run: |
+        # Run the test data initialization script
+        docker-compose -f docker-compose.test.yml run --rm test-data-init
+    
+    - name: Run integration tests
+      env:
+        PYTEST_TIMEOUT: 300
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'test-key' }}
+      run: |
+        # Run integration tests with detailed output
+        pytest tests/test_integration.py \
+          -v \
+          -s \
+          --tb=short \
+          --timeout=300 \
+          --timeout-method=thread \
+          -x \
+          --log-cli-level=INFO
+    
+    - name: Collect test artifacts
+      if: always()
+      run: |
+        # Collect logs from all containers
+        mkdir -p test-artifacts/logs
+        
+        for container in $(docker-compose -f docker-compose.test.yml ps -q); do
+          container_name=$(docker inspect -f '{{.Name}}' $container | sed 's/\///')
+          docker logs $container > "test-artifacts/logs/${container_name}.log" 2>&1
+        done
+        
+        # Export docker-compose status
+        docker-compose -f docker-compose.test.yml ps > test-artifacts/docker-compose-status.txt
+    
+    - name: Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: integration-test-artifacts
+        path: test-artifacts/
+        retention-days: 7
+    
+    - name: Stop test environment
+      if: always()
+      run: |
+        docker-compose -f docker-compose.test.yml down -v
+        docker system prune -f
+    
+    - name: Debug information
+      if: failure() || github.event.inputs.debug_enabled == 'true'
+      run: |
+        echo "=== Docker processes ==="
+        docker ps -a
+        
+        echo "=== Docker networks ==="
+        docker network ls
+        
+        echo "=== Docker volumes ==="
+        docker volume ls
+        
+        echo "=== System resources ==="
+        df -h
+        free -h
+    
+  integration-tests-matrix:
+    needs: integration-tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        test-scenario: [
+          "basic-rag",
+          "concurrent-load",
+          "error-handling",
+          "state-persistence"
+        ]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio docker-compose
+    
+    - name: Start test environment
+      run: |
+        docker-compose -f docker-compose.test.yml up -d
+        sleep 30  # Wait for services
+    
+    - name: Run specific test scenario
+      run: |
+        # Run specific test class based on matrix
+        case "${{ matrix.test-scenario }}" in
+          "basic-rag")
+            pytest tests/test_integration.py::TestRAGIntegration::test_rag_query_flow -v
+            ;;
+          "concurrent-load")
+            pytest tests/test_integration.py::TestRAGIntegration::test_concurrent_requests -v
+            ;;
+          "error-handling")
+            pytest tests/test_integration.py::TestRAGIntegration::test_error_handling -v
+            ;;
+          "state-persistence")
+            pytest tests/test_integration.py::TestRAGIntegration::test_state_persistence_and_recovery -v
+            ;;
+        esac
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker-compose -f docker-compose.test.yml down -v
