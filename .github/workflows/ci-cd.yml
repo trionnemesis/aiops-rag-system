@@ -13,7 +13,7 @@ on:
 env:
   DOCKER_REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  MIN_COVERAGE: 30  # 覆蓋率要求設為 30%
+  MIN_COVERAGE: 50  # 覆蓋率要求設為 50%
   PYTHON_VERSION: '3.11'
 
 jobs:
@@ -77,9 +77,10 @@ jobs:
           --cov-report=term-missing \
           --cov-report=html:htmlcov \
           --cov-report=xml:coverage.xml \
+          --cov-fail-under=${{ env.MIN_COVERAGE }} \
           --html=report.html \
           --self-contained-html \
-          -v || true
+          -v
         
         # 顯示覆蓋率報告
         echo "=== Coverage Report ==="
