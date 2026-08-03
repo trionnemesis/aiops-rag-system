@@ -4,9 +4,12 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 import os
 import redis
-from langgraph.checkpoint.redis import RedisSaver
+from langgraph.checkpoint.redis import RedisSaver  # 來自 langgraph-checkpoint-redis 套件
+from app.observability import get_logger
 from .state import RAGState
 from .nodes import extract_node, plan_node, retrieve_node, synthesize_node, validate_node, error_handler_node
+
+logger = get_logger(__name__)
 
 # ---- 簡易 RRF（最小版）：只用排名融合，不看分數 ----
 def simple_rrf_fuse(runs: List[List], k: int = 8, c: int = 60):
@@ -138,19 +141,21 @@ def build_graph(
     # 根據環境變數決定使用 Redis 或記憶體 checkpoint
     redis_url = os.getenv("REDIS_URL")
     if redis_url:
-        try:
-            # 建立 Redis 連接
-            redis_client = redis.from_url(redis_url)
-            # 測試連接
-            redis_client.ping()
-            checkpointer = RedisSaver(redis_client)
-            print(f"Using Redis checkpoint at {redis_url}")
-        except Exception as e:
-            print(f"Failed to connect to Redis: {e}, falling back to MemorySaver")
-            checkpointer = MemorySaver()
+        # 明確設定了 REDIS_URL 代表使用者要的是持久化狀態。
+        # 這裡不再靜默降級成 MemorySaver——那會讓「支援中斷恢復」
+        # 在使用者不知情的狀況下失效。連不上就讓它失敗。
+        redis_client = redis.from_url(redis_url)
+        redis_client.ping()  # 及早驗證連線
+        checkpointer = RedisSaver(redis_client=redis_client)
+        checkpointer.setup()  # 建立 checkpoint 所需的 Redis 索引
+        logger.info(f"Using Redis checkpoint at {redis_url}")
     else:
         checkpointer = MemorySaver()
-        print("Using in-memory checkpoint")
-    
+        logger.warning(
+            "REDIS_URL 未設定，使用 in-memory checkpoint："
+            "工作流程狀態不會跨行程保存，中斷後無法恢復。"
+        )
+
+
     app = graph.compile(checkpointer=checkpointer)
     return app

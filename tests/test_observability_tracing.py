@@ -65,36 +65,28 @@ class TestDistributedTracing:
         mock_fastapi_inst.instrument.assert_called_once()
         mock_httpx_inst.instrument.assert_called_once()
     
+    @patch('app.observability.tracing.HTTPXClientInstrumentor')
+    @patch('app.observability.tracing.FastAPIInstrumentor')
     @patch('app.observability.tracing.trace')
     @patch('app.observability.tracing.TracerProvider')
-    @patch('app.observability.tracing.JaegerExporter')
     @patch('app.observability.tracing.BatchSpanProcessor')
-    def test_setup_tracing_with_jaeger(self, mock_batch_processor, mock_jaeger_exporter,
-                                      mock_tracer_provider, mock_trace):
-        """測試使用 Jaeger 的追蹤設定"""
-        # 設定模擬
+    def test_setup_tracing_without_endpoint_adds_no_exporter(
+        self, mock_batch_processor, mock_tracer_provider, mock_trace,
+        mock_fastapi_inst, mock_httpx_inst
+    ):
+        """未提供 OTLP 端點時不應註冊任何 span exporter
+
+        （原本這裡測的是 Jaeger exporter，該 exporter 已被官方 deprecated 並移除，
+        追蹤統一改走 OTLP — Jaeger 可直接以 OTLP 接收。）
+        """
         mock_provider_instance = Mock()
         mock_tracer_provider.return_value = mock_provider_instance
-        mock_exporter_instance = Mock()
-        mock_jaeger_exporter.return_value = mock_exporter_instance
-        mock_processor_instance = Mock()
-        mock_batch_processor.return_value = mock_processor_instance
-        
-        # 執行設定
-        setup_tracing(
-            service_name="test-service",
-            jaeger_endpoint="localhost:6831"
-        )
-        
-        # 驗證 Jaeger exporter 設定
-        mock_jaeger_exporter.assert_called_once_with(
-            agent_host_name="localhost",
-            agent_port=6831
-        )
-        
-        # 驗證添加了 span processor
-        mock_batch_processor.assert_called_once_with(mock_exporter_instance)
-        mock_provider_instance.add_span_processor.assert_called()
+
+        setup_tracing(service_name="test-service")
+
+        # 沒有端點也沒開 console 導出 → 不該有任何 span processor
+        mock_batch_processor.assert_not_called()
+        mock_provider_instance.add_span_processor.assert_not_called()
     
     @patch('app.observability.tracing.trace')
     @patch('app.observability.tracing.TracerProvider')

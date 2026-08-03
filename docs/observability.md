@@ -212,8 +212,7 @@ JSON_LOGS=true                    # 是否使用 JSON 格式（生產環境建�
 LOG_FILE=/var/log/rag/app.log    # 日誌文件路徑（選填）
 
 # 追蹤配置
-JAEGER_ENDPOINT=localhost:6831    # Jaeger 收集器端點
-OTLP_ENDPOINT=localhost:4317      # OTLP 收集器端點（選填）
+OTLP_ENDPOINT=localhost:4317      # OTLP 收集器端點（Jaeger/Tempo/Collector 皆可）
 TRACE_CONSOLE=false               # 是否在控制台輸出追蹤（開發用）
 
 # 指標配置
@@ -231,7 +230,7 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - JSON_LOGS=true
-      - JAEGER_ENDPOINT=jaeger:6831
+      - OTLP_ENDPOINT=jaeger:4317
       - METRICS_PORT=8000
     ports:
       - "8000:8000"    # API 和 Metrics 端口

@@ -15,7 +15,8 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 JSON_LOGS = os.getenv("JSON_LOGS", "true").lower() == "true"
 LOG_FILE = os.getenv("LOG_FILE", None)
 
-JAEGER_ENDPOINT = os.getenv("JAEGER_ENDPOINT", "localhost:6831")
+# 追蹤一律走 OTLP。Jaeger 原生支援 OTLP 接收（gRPC 4317），
+# 舊的 JAEGER_ENDPOINT / agent UDP 6831 路徑已隨 exporter deprecated 移除。
 OTLP_ENDPOINT = os.getenv("OTLP_ENDPOINT", None)
 TRACE_CONSOLE = os.getenv("TRACE_CONSOLE", "false").lower() == "true"
 
@@ -35,7 +36,6 @@ def init_observability():
     setup_tracing(
         service_name="langgraph-rag",
         service_version="1.0.0",
-        jaeger_endpoint=JAEGER_ENDPOINT if JAEGER_ENDPOINT != "none" else None,
         otlp_endpoint=OTLP_ENDPOINT,
         console_export=TRACE_CONSOLE
     )

@@ -1,50 +1,58 @@
-# LangGraph 核心相依
-langgraph
-langchain-core
-langchain-community
+# ==============================================================================
+# 執行時相依 (production runtime dependencies)
+#
+# 所有版本皆已鎖定，確保環境可重現。
+# 開發/測試/壓測用套件請見 requirements-dev.txt。
+#
+# 升級相依時請一併執行：
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   pytest tests/
+# ==============================================================================
 
-# OpenSearch
-opensearch-py
+# --- LangGraph 核心 ---
+langgraph==1.2.10
+langgraph-checkpoint-redis==0.5.1  # Redis checkpointer，已從 langgraph 本體拆出
 
-# FastAPI
-fastapi
-uvicorn
-pydantic
+# --- LangChain 核心與整合 ---
+langchain-core==1.5.3
+langchain-community==0.4.2  # 註：官方已宣布 sunset，OpenSearch/HuggingFace 整合待遷移至獨立套件
+langchain-text-splitters==1.1.2
+langchain-google-genai==4.3.2
+langchain-openai==1.4.1
 
-# LLM Providers (選擇你需要的)
-langchain-openai  # for OpenAI
-langchain-google-genai  # for Google Gemini
+# --- OpenSearch ---
+opensearch-py==3.2.0
 
-# 其他可能需要的
-python-dotenv  # 環境變數管理
-httpx  # async HTTP client
+# --- FastAPI / Web ---
+fastapi==0.141.1
+uvicorn==0.52.1
+pydantic==2.13.4
+pydantic-settings==2.14.2  # src/config.py 的 BaseSettings 來源
+httpx==0.28.1
 
-# KNN 向量搜尋相關
-tqdm  # 進度條顯示
-colorama  # 彩色輸出
-numpy  # 向量計算
+# --- 工具 ---
+python-dotenv==1.2.2
+async-lru==2.3.0  # rag_chain_service / rag_service 的 alru_cache
+tenacity==9.1.4   # 重試機制與指數退避
+numpy==2.4.6
+tqdm==4.70.0
+colorama==0.4.6
 
-# 效能測試相關
-locust  # 壓力測試工具
-pandas  # 數據分析
-psutil  # 系統資源監控
+# --- 狀態持久化 ---
+redis==7.4.1  # 上限由 langgraph-checkpoint-redis → redisvl 決定，不可升到 8.x
 
-# 監控相關
-prometheus-client  # Prometheus 指標收集
+# --- 可觀測性：日誌 ---
+loguru==0.7.3
 
-# 重試機制
-tenacity  # 重試機制與指數退避
+# --- 可觀測性：度量 ---
+prometheus-client==0.26.0
+psutil==7.2.2
 
-# 狀態持久化
-redis  # Redis 客戶端，用於 LangGraph checkpoint
-
-# 結構化日誌
-loguru  # 結構化日誌框架，替代 print()
-
-# 分散式追蹤
-opentelemetry-api  # OpenTelemetry API
-opentelemetry-sdk  # OpenTelemetry SDK
-opentelemetry-instrumentation-fastapi  # FastAPI 自動追蹤
-opentelemetry-instrumentation-httpx  # HTTP 客戶端追蹤
-opentelemetry-exporter-jaeger  # Jaeger 追蹤導出器
-opentelemetry-exporter-otlp  # OTLP 通用導出器
+# --- 可觀測性：分散式追蹤 ---
+# 註：opentelemetry-exporter-jaeger 已被官方 deprecated，且會將 otlp exporter
+#     反向鎖回 1.15.0，故移除。Jaeger 本身原生支援 OTLP 接收。
+opentelemetry-api==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp==1.44.0
+opentelemetry-instrumentation-fastapi==0.65b0
+opentelemetry-instrumentation-httpx==0.65b0

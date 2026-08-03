@@ -65,11 +65,28 @@ def setup_logging(
     """
     # 移除預設的 handler
     logger.remove()
-    
+
+    # extra 的預設值：人類可讀格式會直接引用 {extra[request_id]} 等欄位，
+    # 沒有預設值時，任何未帶上下文的日誌都會 KeyError。
+    logger.configure(
+        extra={"request_id": "-", "node_name": "-", "serialized": ""}
+    )
+
     # 配置格式
     if json_logs:
-        # JSON 格式，適用於生產環境
-        format_string = serialize_record
+        # JSON 格式，適用於生產環境。
+        #
+        # 注意：loguru 的 format= 若傳入 callable，回傳值會被當成「格式模板」
+        # 再解析一次，因此直接回傳 JSON 會讓 {"timestamp": ...} 被誤判為欄位
+        # 佔位符並拋 KeyError。正確做法是用 patcher 先把序列化結果放進 extra，
+        # 再以一個單純的佔位符輸出。
+        logger.configure(
+            extra={"request_id": "-", "node_name": "-", "serialized": ""},
+            patcher=lambda record: record["extra"].update(
+                serialized=serialize_record(record)
+            ),
+        )
+        format_string = "{extra[serialized]}"
     else:
         # 人類可讀格式，適用於開發環境
         format_string = (
@@ -86,7 +103,8 @@ def setup_logging(
         sys.stdout,
         format=format_string,
         level=level,
-        serialize=json_logs
+        # 不要再開 serialize：serialize_record 已經產出 JSON，
+        # 兩者並用會變成 JSON 包 JSON 的雙重序列化。
     )
     
     # 添加文件輸出（如果指定）

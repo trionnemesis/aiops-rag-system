@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# 虛擬環境
+.venv/
+venv/
+env/
+
+# 測試與覆蓋率
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+report.html
+
+# 環境變數（.env.example 才是範本，實際的 .env 絕不進版控）
+.env
+.env.local
+
+# 編輯器
+.idea/
+.vscode/
+*.swp
+
+# 作業系統
+.DS_Store

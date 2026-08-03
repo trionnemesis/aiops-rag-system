@@ -114,16 +114,13 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     ports:
-      - "5775:5775/udp"     # Zipkin/Thrift compact
-      - "6831:6831/udp"     # Thrift compact
-      - "6832:6832/udp"     # Thrift binary
-      - "5778:5778"         # Serving configs
       - "16686:16686"       # Jaeger UI
-      - "14268:14268"       # Thrift over HTTP
-      - "14250:14250"       # gRPC
-      - "9411:9411"         # Zipkin compatible endpoint
+      - "4317:4317"         # OTLP gRPC receiver（應用程式送 trace 走這裡）
+      - "4318:4318"         # OTLP HTTP receiver
     environment:
-      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      # 舊的 Thrift/agent UDP 埠已移除：opentelemetry-exporter-jaeger 已被官方
+      # deprecated，應用程式改以 OTLP 送出（見 app/observability/tracing.py）。
+      - COLLECTOR_OTLP_ENABLED=true
     networks:
       - aiops-network
     restart: on-failure

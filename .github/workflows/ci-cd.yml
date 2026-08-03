@@ -43,8 +43,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-asyncio pytest-cov pytest-html flake8 pip-audit safety
+        pip install -r requirements.txt -r requirements-dev.txt
+        # 安全掃描工具不進 requirements-dev.txt（僅 CI 使用）
+        pip install pip-audit safety
+        # 確認鎖定的版本組合沒有相依衝突
+        pip check
     
     # 基本語法檢查
     - name: Syntax validation

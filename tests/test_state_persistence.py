@@ -11,6 +11,16 @@ from langchain_core.documents import Document
 from app.graph.build import build_graph
 from app.graph.state import RAGState
 
+TEST_REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
+
+def requires_redis():
+    """需要實際 Redis 的測試：連不上就 skip，而不是失敗。"""
+    try:
+        redis.from_url(TEST_REDIS_URL).ping()
+    except Exception:
+        pytest.skip(f"Redis not available at {TEST_REDIS_URL}")
+
 
 class TestStatePersistence:
     """測試狀態持久化和恢復功能"""
@@ -49,22 +59,41 @@ class TestStatePersistence:
         except:
             pytest.skip("Redis not available")
     
-    def test_redis_checkpoint_creation(self, mock_llm, mock_retriever):
+    def test_redis_checkpoint_creation(self, mock_llm, mock_retriever, monkeypatch):
         """測試 Redis checkpoint 的創建"""
-        # 設置環境變數
-        os.environ["REDIS_URL"] = "redis://localhost:6379"
-        
+        requires_redis()
+        # 用 monkeypatch 設定環境變數，測試結束後自動還原，
+        # 避免洩漏到後續測試（原本直接寫 os.environ 且未清理）
+        monkeypatch.setenv("REDIS_URL", TEST_REDIS_URL)
+
         # 建構 graph
         app = build_graph(
             llm=mock_llm,
             retriever=mock_retriever,
             policy={"max_retries": 1}
         )
-        
+
         # 確認使用了 RedisSaver
         assert app.checkpointer is not None
         assert "RedisSaver" in str(type(app.checkpointer))
-    
+
+    def test_unreachable_redis_fails_fast(self, mock_llm, mock_retriever, monkeypatch):
+        """設定了 REDIS_URL 但連不上時，應直接失敗而非靜默降級
+
+        原本的行為是 except 後回退 MemorySaver 並只印一行訊息，
+        會讓「狀態持久化」在使用者不知情的情況下失效。
+        """
+        # 指向一個必定沒有服務在聽的埠
+        monkeypatch.setenv("REDIS_URL", "redis://localhost:1")
+
+        with pytest.raises(redis.exceptions.RedisError):
+            build_graph(
+                llm=mock_llm,
+                retriever=mock_retriever,
+                policy={"max_retries": 1}
+            )
+
+
     def test_state_persistence_and_recovery(self, mock_llm, mock_retriever, redis_client):
         """測試狀態持久化和恢復"""
         thread_id = f"test-{uuid.uuid4()}"
