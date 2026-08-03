@@ -1,6 +1,10 @@
 """分散式追蹤配置模塊
 
-使用 OpenTelemetry 實現分散式追蹤，支援 Jaeger 和 OTLP 導出
+使用 OpenTelemetry 實現分散式追蹤，透過 OTLP 導出。
+
+註：opentelemetry-exporter-jaeger 已被官方 deprecated，改用 OTLP exporter。
+Jaeger 本身原生支援 OTLP 接收（gRPC 4317 / HTTP 4318），
+故將 otlp_endpoint 指向 Jaeger 即可，無須專用的 Jaeger exporter。
 """
 
 import os
@@ -15,7 +19,6 @@ from opentelemetry.sdk.trace.export import (
     ConsoleSpanExporter,
 )
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
@@ -28,17 +31,16 @@ tracer: Optional[trace.Tracer] = None
 def setup_tracing(
     service_name: str = "langgraph-rag",
     service_version: str = "1.0.0",
-    jaeger_endpoint: Optional[str] = None,
     otlp_endpoint: Optional[str] = None,
     console_export: bool = False
 ) -> None:
     """配置分散式追蹤
-    
+
     Args:
         service_name: 服務名稱
         service_version: 服務版本
-        jaeger_endpoint: Jaeger 收集器端點 (如: "localhost:6831")
-        otlp_endpoint: OTLP 收集器端點 (如: "localhost:4317")
+        otlp_endpoint: OTLP 收集器端點 (如: "jaeger:4317")。
+            Jaeger、Tempo、OTel Collector 皆可透過此端點接收。
         console_export: 是否同時輸出到控制台（用於開發調試）
     """
     global tracer
@@ -55,13 +57,6 @@ def setup_tracing(
     trace.set_tracer_provider(provider)
     
     # 添加導出器
-    if jaeger_endpoint:
-        jaeger_exporter = JaegerExporter(
-            agent_host_name=jaeger_endpoint.split(":")[0],
-            agent_port=int(jaeger_endpoint.split(":")[1]) if ":" in jaeger_endpoint else 6831,
-        )
-        provider.add_span_processor(BatchSpanProcessor(jaeger_exporter))
-    
     if otlp_endpoint:
         otlp_exporter = OTLPSpanExporter(
             endpoint=otlp_endpoint,
@@ -77,21 +72,44 @@ def setup_tracing(
     tracer = trace.get_tracer(service_name, service_version)
     
     # 自動儀表化
-    FastAPIInstrumentor.instrument()
-    HTTPXClientInstrumentor.instrument()
+    # 註：instrument() 是 BaseInstrumentor 的實例方法（instrumentor 本身是
+    #     singleton），必須先實例化。舊寫法 FastAPIInstrumentor.instrument()
+    #     直接在類別上呼叫，在目前版本會拋 TypeError。
+    FastAPIInstrumentor().instrument()
+    HTTPXClientInstrumentor().instrument()
 
 
 def get_tracer() -> trace.Tracer:
-    """獲取 tracer 實例"""
+    """獲取 tracer 實例
+
+    未呼叫 setup_tracing() 時回退到 OpenTelemetry 的全域 tracer
+    （預設是不做任何事的 no-op 實作），而非拋出 RuntimeError。
+
+    追蹤是輔助性的可觀測性機制：沒設定追蹤就讓所有被 @trace_node 裝飾的
+    業務邏輯整條掛掉，是不合理的失效模式。OTLP_ENDPOINT 為選填，
+    未設定時服務仍應正常運作。
+    """
     global tracer
     if tracer is None:
-        raise RuntimeError("Tracer not initialized. Call setup_tracing() first.")
+        return trace.get_tracer(__name__)
     return tracer
+
+
+def _state_get(state: Any, key: str, default: Any = None) -> Any:
+    """從 graph state 取值，同時支援 dict 與 Pydantic BaseModel
+
+    LangGraph 的 state 在本專案裡是 RAGState（Pydantic BaseModel），
+    但這些裝飾器原本只用 state.get()，對 BaseModel 會拋 AttributeError。
+    節點在單元測試中又常以 dict 傳入，故兩種都要支援。
+    """
+    if isinstance(state, dict):
+        return state.get(key, default)
+    return getattr(state, key, default)
 
 
 def trace_node(node_name: str):
     """裝飾器：為 LangGraph 節點添加追蹤
-    
+
     使用範例：
         @trace_node("retrieve")
         def retrieve_node(state):
@@ -100,12 +118,12 @@ def trace_node(node_name: str):
     """
     def decorator(func):
         @wraps(func)
-        def wrapper(state: Dict[str, Any], *args, **kwargs):
+        def wrapper(state: Any, *args, **kwargs):
             tracer = get_tracer()
-            
+
             # 從狀態中提取上下文資訊
-            request_id = state.get("request_id", "unknown")
-            query = state.get("query", "")
+            request_id = _state_get(state, "request_id", "unknown")
+            query = _state_get(state, "query", "")
             
             # 創建 span
             with tracer.start_as_current_span(

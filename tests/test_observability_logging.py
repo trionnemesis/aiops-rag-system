@@ -142,9 +142,12 @@ class TestStructuredLogging:
         stdout_call = add_calls[0]
         assert stdout_call[0][0] == sys.stdout
         assert stdout_call[1]["level"] == "DEBUG"
-        assert stdout_call[1]["serialize"] is True
-        # format 應該是 serialize_record 函數
-        assert callable(stdout_call[1]["format"])
+        # 不應再傳 serialize=：serialize_record 已產出 JSON，
+        # 兩者並用會造成雙重序列化。
+        assert "serialize" not in stdout_call[1]
+        # JSON 模式改用 patcher 把序列化結果放進 extra，
+        # format 是引用它的佔位符字串（傳 callable 會被 loguru 當成格式模板再解析一次）
+        assert stdout_call[1]["format"] == "{extra[serialized]}"
     
     @patch('app.observability.logging.logger')
     def test_setup_logging_human_format(self, mock_logger):
@@ -163,7 +166,7 @@ class TestStructuredLogging:
         stdout_call = add_calls[0]
         assert stdout_call[0][0] == sys.stdout
         assert stdout_call[1]["level"] == "INFO"
-        assert stdout_call[1]["serialize"] is False
+        assert "serialize" not in stdout_call[1]
         # format 應該是格式字串
         assert isinstance(stdout_call[1]["format"], str)
         assert "{time:" in stdout_call[1]["format"]
@@ -192,7 +195,7 @@ class TestStructuredLogging:
         assert file_call[1]["rotation"] == "100 MB"
         assert file_call[1]["retention"] == "7 days"
         assert file_call[1]["compression"] == "zip"
-        assert file_call[1]["serialize"] is True
+        assert "serialize" not in file_call[1]
     
     def test_get_logger_with_name(self):
         """測試獲取命名 logger"""

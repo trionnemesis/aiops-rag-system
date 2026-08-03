@@ -1,10 +1,13 @@
 name: CI/CD Pipeline
 
 on:
+  # 註：本 repo 的預設分支是 LangGraph-DAG，不是 main（main 停在 2025-07-27，
+  #     已落後實際開發線）。原本的觸發條件只列 main，導致進入預設分支的 PR
+  #     從來不會跑 CI —— 過去一年只有每週的 schedule 在跑（且一直是紅的）。
   push:
-    branches: [ main, develop, feature/* ]
+    branches: [ LangGraph-DAG, main, develop, 'feature/*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ LangGraph-DAG, main ]
   schedule:
     # 每週一早上 9 點執行安全檢查（UTC 時間）
     - cron: '0 9 * * 1'
@@ -43,8 +46,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest pytest-asyncio pytest-cov pytest-html flake8 pip-audit safety
+        pip install -r requirements.txt -r requirements-dev.txt
+        # 安全掃描工具不進 requirements-dev.txt（僅 CI 使用）
+        pip install pip-audit safety
+        # 確認鎖定的版本組合沒有相依衝突
+        pip check
     
     # 基本語法檢查
     - name: Syntax validation
